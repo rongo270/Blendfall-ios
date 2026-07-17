@@ -4,6 +4,8 @@
 //
 //  GENERATED from the Android app's GeneratedLevels.kt — do not edit by hand.
 //  260 solver-verified levels, packs 5..30, par == BFS-optimal.
+//  Exception: p7l7 and p8l3 were re-authored (the originals were mirror/rotation
+//  twins of p7l6 and p7l1); both replacements are BFS-verified at par 3.
 //
 
 import Foundation
@@ -46,7 +48,7 @@ nonisolated enum GeneratedLevels {
             l(6, 3, 3, "######", "#Y...#", "#....#", "#..Bg#", "######"),
             l(6, 4, 3, "#####", "#...#", "#yR.#", "##.Y#", "#####"),
             l(6, 5, 3, "#####", "#..B#", "#pR.#", "#####"),
-            l(6, 6, 3, "#####", "#.Rp#", "#B..#", "#####"),
+            l(6, 6, 3, "#####", "#R#p#", "#B..#", "#####"),
             l(6, 7, 3, "#####", "#g.B#", "#.Y.#", "#.R##", "#####"),
             l(6, 8, 3, "######", "#pB..#", "#..R.#", "######"),
             l(6, 9, 3, "#####", "#...#", "#BYY#", "#..g#", "#####"),
@@ -54,7 +56,7 @@ nonisolated enum GeneratedLevels {
         Pack(id: 7, nameKey: .pack_8_name, premium: false, levels: [
             l(7, 0, 3, "######", "#...R#", "#B.pB#", "######"),
             l(7, 1, 3, "######", "#..YR#", "#.#Y.#", "#..#o#", "######"),
-            l(7, 2, 3, "######", "#.Y.##", "#R..o#", "######"),
+            l(7, 2, 3, "######", "#R...#", "#.#oY#", "######"),
             l(7, 3, 3, "#####", "#..B#", "#Y..#", "#g..#", "#####"),
             l(7, 4, 3, "#####", "#..y#", "##.R#", "#Y..#", "#####"),
             l(7, 5, 3, "#####", "#.###", "#.BY#", "#g..#", "#####"),

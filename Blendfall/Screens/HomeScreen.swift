@@ -2,9 +2,9 @@
 //  HomeScreen.swift
 //  Blendfall
 //
-//  The title screen: bouncing logo blocks over a soft gradient, drifting
-//  background blocks, progress card, and the Play / Blitz / Levels /
-//  Premium / Settings buttons.
+//  The title screen: bouncing logo blocks over a soft gradient with a warm
+//  glow, drifting background blocks, progress card, and chunky glossy
+//  Play / Blitz / Levels / Premium / Settings buttons.
 //
 
 import SwiftUI
@@ -31,17 +31,26 @@ struct HomeScreen: View {
             )
             .ignoresSafeArea()
 
+            // Warm spotlight behind the title so the menu has a stage.
+            RadialGradient(
+                colors: [palette.accent.opacity(palette.isDark ? 0.22 : 0.14), .clear],
+                center: UnitPoint(x: 0.5, y: 0.30),
+                startRadius: 10,
+                endRadius: 360
+            )
+            .ignoresSafeArea()
+
             FloatingBlocks(palette: palette, shape: progress.shape)
 
             VStack(spacing: 0) {
                 Spacer()
 
                 BouncingBlocks(palette: palette, shape: progress.shape)
-                    .padding(.bottom, 18)
+                    .padding(.bottom, 22)
 
                 // The title itself is a blend — red into yellow into blue.
                 Text(s[.app_name])
-                    .font(.system(size: 46, weight: .black, design: .rounded))
+                    .font(.system(size: 50, weight: .black, design: .rounded))
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
@@ -53,9 +62,11 @@ struct HomeScreen: View {
                             endPoint: .trailing
                         )
                     )
+                    .shadow(color: .black.opacity(palette.isDark ? 0.45 : 0.16), radius: 10, y: 5)
                 Text(s[.home_tagline])
-                    .font(.system(size: 15, design: .rounded))
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
                     .foregroundStyle(palette.textSecondary)
+                    .padding(.top, 2)
 
                 Spacer().frame(height: 26)
 
@@ -74,25 +85,19 @@ struct HomeScreen: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "play.fill")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 19, weight: .bold))
                         Text(
                             solved > 0
                                 ? s.f(.home_continue, Levels.globalNumber(continueId))
                                 : s[.home_play]
                         )
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 19, weight: .black, design: .rounded))
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 60)
-                    .background(
-                        LinearGradient(
-                            colors: [palette.accent, palette.accent.lighten(0.22)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        in: RoundedRectangle(cornerRadius: 18)
-                    )
+                    .frame(height: 62)
+                    .chunky(fill: palette.accent, corner: 20, lip: 4)
+                    .shadow(color: palette.accent.opacity(0.45), radius: 14, y: 8)
                 }
                 .buttonStyle(PressableButtonStyle())
                 .scaleEffect(playPulse ? 1.025 : 1)
@@ -102,7 +107,7 @@ struct HomeScreen: View {
                     }
                 }
 
-                Spacer().frame(height: 12)
+                Spacer().frame(height: 14)
 
                 HStack(spacing: 12) {
                     Button(action: onBlitz) {
@@ -112,10 +117,10 @@ struct HomeScreen: View {
                             Text(s[.home_blitz])
                                 .font(.system(size: 16, weight: .bold, design: .rounded))
                         }
-                        .foregroundStyle(palette.star)
+                        .foregroundStyle(palette.isDark ? palette.star : palette.star.darken(0.25))
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(palette.star.opacity(0.18), in: RoundedRectangle(cornerRadius: 16))
+                        .chunky(fill: palette.star.opacity(palette.isDark ? 0.24 : 0.30), corner: 16, lip: 3)
                     }
                     .buttonStyle(PressableButtonStyle())
 
@@ -124,17 +129,17 @@ struct HomeScreen: View {
                             Image(systemName: "square.grid.3x3.fill")
                                 .font(.system(size: 14, weight: .semibold))
                             Text(s[.packs_title])
-                                .font(.system(size: 16, design: .rounded))
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
                         }
                         .foregroundStyle(palette.textPrimary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(palette.surface, in: RoundedRectangle(cornerRadius: 16))
+                        .chunky(fill: palette.surface, corner: 16, lip: 3)
                     }
                     .buttonStyle(PressableButtonStyle())
                 }
 
-                Spacer().frame(height: 12)
+                Spacer().frame(height: 14)
 
                 HStack(spacing: 12) {
                     OutlineButton(palette: palette) {
@@ -144,7 +149,7 @@ struct HomeScreen: View {
                             .font(.system(size: 14))
                             .foregroundStyle(palette.star)
                         Text(s[.home_premium])
-                            .font(.system(size: 15, design: .rounded))
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(progress.premium ? palette.star : palette.textPrimary)
                     }
 
@@ -155,7 +160,7 @@ struct HomeScreen: View {
                             .font(.system(size: 14))
                             .foregroundStyle(palette.textSecondary)
                         Text(s[.home_settings])
-                            .font(.system(size: 15, design: .rounded))
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(palette.textPrimary)
                     }
                 }
@@ -174,6 +179,42 @@ struct HomeScreen: View {
     }
 }
 
+// MARK: - Chunky game-button surface
+
+private extension View {
+    /// The candy-button look: extruded darker lip below, vertical sheen on the
+    /// face and a soft gloss cap — the same language as the app icon blocks.
+    func chunky(fill: Color, corner: CGFloat, lip: CGFloat) -> some View {
+        background(
+            ZStack {
+                RoundedRectangle(cornerRadius: corner)
+                    .fill(fill.darken(0.32))
+                    .offset(y: lip)
+                RoundedRectangle(cornerRadius: corner)
+                    .fill(
+                        LinearGradient(
+                            colors: [fill.lighten(0.16), fill, fill.darken(0.06)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                RoundedRectangle(cornerRadius: corner)
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .white.opacity(0.30), location: 0),
+                                .init(color: .white.opacity(0.06), location: 0.42),
+                                .init(color: .clear, location: 0.55),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            }
+        )
+    }
+}
+
 private struct OutlineButton<Label: View>: View {
     let palette: BlendPalette
     let action: () -> Void
@@ -184,6 +225,7 @@ private struct OutlineButton<Label: View>: View {
             HStack(spacing: 6) { label }
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
+                .background(palette.surface.opacity(palette.isDark ? 0.45 : 0.6), in: RoundedRectangle(cornerRadius: 16))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(palette.textSecondary.opacity(0.35), lineWidth: 1)
@@ -248,33 +290,49 @@ private struct ProgressCard: View {
     let s: Strings
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 9) {
             HStack {
                 Text(s.f(.home_progress, solved, total))
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(palette.textPrimary)
                 Spacer()
-                Image(systemName: "star.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(palette.star)
-                Text(s.f(.home_stars, stars))
-                    .font(.system(size: 13, design: .rounded))
-                    .foregroundStyle(palette.textSecondary)
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(palette.star)
+                    Text(s.f(.home_stars, stars))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(palette.textSecondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(palette.star.opacity(0.14), in: Capsule())
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
+                    Capsule()
                         .fill(palette.textSecondary.opacity(0.15))
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(palette.accent)
-                        .frame(width: geo.size.width * min(1, Double(solved) / Double(total)))
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [palette.accent, palette.accent.lighten(0.25)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(8, geo.size.width * min(1, Double(solved) / Double(total))))
+                        .shadow(color: palette.accent.opacity(0.5), radius: 4)
                 }
             }
-            .frame(height: 6)
+            .frame(height: 8)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(palette.surface.opacity(0.85), in: RoundedRectangle(cornerRadius: 16))
+        .padding(.vertical, 13)
+        .background(palette.surface.opacity(0.9), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(palette.textSecondary.opacity(0.12), lineWidth: 1)
+        )
     }
 }
 
@@ -285,10 +343,12 @@ private struct BouncingBlocks: View {
     @State private var bounce = false
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 12) {
+        HStack(alignment: .bottom, spacing: 14) {
             ForEach(Array([GameColor.red, .yellow, .blue].enumerated()), id: \.offset) { i, color in
                 BlockView(color: color, palette: palette, shape: shape)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 48, height: 48)
+                    .shadow(color: .black.opacity(palette.isDark ? 0.5 : 0.22), radius: 5, y: 6)
+                    .rotationEffect(.degrees(bounce ? (i.isMultiple(of: 2) ? 5 : -5) : 0))
                     .offset(y: bounce ? -14 : 0)
                     .animation(
                         .easeInOut(duration: 0.52).repeatForever(autoreverses: true).delay(Double(i) * 0.14),
