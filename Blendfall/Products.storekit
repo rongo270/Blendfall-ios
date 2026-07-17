@@ -1,0 +1,98 @@
+{
+  "identifier" : "3C9E5A70-11B2-4D8F-A6E4-7B0D2C5F91A3",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "7B3D8E22-0001-4000-8000-000000000001",
+      "localizations" : [
+        {
+          "description" : "All 300 levels, 3 exclusive themes and 2 block shapes.",
+          "displayName" : "Blendfall Premium",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.rongo.blendfall.premium",
+      "referenceName" : "Blendfall Premium",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "7B3D8E22-0002-4000-8000-000000000002",
+      "localizations" : [
+        {
+          "description" : "Pastel & Bubblegum themes, Heart & Star blocks.",
+          "displayName" : "Candy Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.rongo.blendfall.pack.candy",
+      "referenceName" : "Candy Pack",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "7B3D8E22-0003-4000-8000-000000000003",
+      "localizations" : [
+        {
+          "description" : "Forest & Autumn themes, Hexagon & Flower blocks.",
+          "displayName" : "Nature Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.rongo.blendfall.pack.nature",
+      "referenceName" : "Nature Pack",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "7B3D8E22-0004-4000-8000-000000000004",
+      "localizations" : [
+        {
+          "description" : "Retro & Arcade themes, Triangle & Gem blocks.",
+          "displayName" : "Retro Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.rongo.blendfall.pack.retro",
+      "referenceName" : "Retro Pack",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "7B3D8E22-0005-4000-8000-000000000005",
+      "localizations" : [
+        {
+          "description" : "Refill your hint supply anytime.",
+          "displayName" : "50 Hints",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.rongo.blendfall.hints50",
+      "referenceName" : "50 Hints",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
