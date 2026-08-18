@@ -28,7 +28,7 @@ struct SettingsScreen: View {
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(palette.textPrimary)
                     Spacer()
-                    BackButton(palette: palette, icon: "xmark") { dismiss() }
+                    BackButton(palette: palette, icon: "xmark", label: s[.back]) { dismiss() }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
@@ -37,7 +37,10 @@ struct SettingsScreen: View {
                     VStack(alignment: .leading, spacing: 0) {
                         // ---------------- Theme ----------------
                         SectionLabel(text: s[.settings_theme], palette: palette)
-                        let themeRows = AppTheme.ordered.chunked(4)
+                        // Three per row, not four: at four the cards are ~72pt wide and
+                        // the longer theme names in German, Russian and Polish shrank to
+                        // the autosize floor and still truncated.
+                        let themeRows = AppTheme.ordered.chunked(3)
                         ForEach(Array(themeRows.enumerated()), id: \.offset) { _, row in
                             HStack(spacing: 10) {
                                 ForEach(row) { candidate in
@@ -55,7 +58,7 @@ struct SettingsScreen: View {
                                         }
                                     }
                                 }
-                                ForEach(0..<(4 - row.count), id: \.self) { _ in
+                                ForEach(0..<(3 - row.count), id: \.self) { _ in
                                     Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
                                 }
                             }
@@ -233,7 +236,7 @@ private struct ThemeCard: View {
                         .minimumScaleFactor(0.6)
                 }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 48)
             .padding(.vertical, 10)
             .background(preview.background, in: RoundedRectangle(cornerRadius: 14))
             .overlay(
@@ -245,6 +248,11 @@ private struct ThemeCard: View {
             )
         }
         .buttonStyle(PressableButtonStyle())
+        // The 2.5pt accent border was the only thing saying which theme is active, so a
+        // screen reader user had no way to tell what they had already chosen.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(locked ? "\(s[theme.nameKey]), \(s[.locked])" : s[theme.nameKey])
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -275,7 +283,7 @@ private struct ShapeCard: View {
                         .minimumScaleFactor(0.6)
                 }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 48)
             .padding(.vertical, 10)
             .background(palette.surface, in: RoundedRectangle(cornerRadius: 14))
             .overlay(
@@ -287,6 +295,9 @@ private struct ShapeCard: View {
             )
         }
         .buttonStyle(PressableButtonStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(locked ? "\(s[shape.nameKey]), \(s[.locked])" : s[shape.nameKey])
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -297,7 +308,10 @@ private struct ToggleRow: View {
     let palette: BlendPalette
 
     var body: some View {
-        HStack(spacing: 12) {
+        // Label and switch are one control: with the state on the Toggle alone, a screen
+        // reader read the label, then separately announced "off, switch" with no way to
+        // tell which setting it belonged to.
+        Toggle(isOn: $isOn) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 15, weight: .medium, design: .rounded))
@@ -306,11 +320,10 @@ private struct ToggleRow: View {
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(palette.textSecondary)
             }
-            Spacer()
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(palette.accent)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .tint(palette.accent)
+        .frame(minHeight: 48)
         .padding(.vertical, 8)
     }
 }

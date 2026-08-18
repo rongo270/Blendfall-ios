@@ -93,10 +93,10 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0xFFFFFF),
         boardBackground: Color(hex: 0xE8E1D4),
         cell: Color(hex: 0xF3EEE3),
-        wall: Color(hex: 0xC9BEA9),
+        wall: Color(hex: 0x9A8660),
         textPrimary: Color(hex: 0x2E2A24),
-        textSecondary: Color(hex: 0x8A8272),
-        accent: Color(hex: 0x5B8DEF),
+        textSecondary: Color(hex: 0x746D5F),
+        accent: Color(hex: 0x2467EA),
         star: Color(hex: 0xF5B301),
         portal: Color(hex: 0x4A4441),
         blocks: [
@@ -115,7 +115,7 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0x1D1F2E),
         boardBackground: Color(hex: 0x1A1C29),
         cell: Color(hex: 0x242738),
-        wall: Color(hex: 0x3A3E56),
+        wall: Color(hex: 0x686F99),
         textPrimary: Color(hex: 0xEDEFF7),
         textSecondary: Color(hex: 0x8D92AC),
         accent: Color(hex: 0x7AA2FF),
@@ -137,7 +137,7 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0x14141F),
         boardBackground: Color(hex: 0x10101B),
         cell: Color(hex: 0x1A1A2A),
-        wall: Color(hex: 0x2C2C48),
+        wall: Color(hex: 0x62629F),
         textPrimary: Color(hex: 0xF2F2FF),
         textSecondary: Color(hex: 0x7C7C9E),
         accent: Color(hex: 0x00E5FF),
@@ -159,10 +159,10 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0xFFFFFF),
         boardBackground: Color(hex: 0xF2E9F0),
         cell: Color(hex: 0xFAF3F8),
-        wall: Color(hex: 0xD8C7D6),
+        wall: Color(hex: 0xA781A3),
         textPrimary: Color(hex: 0x4A3F4C),
-        textSecondary: Color(hex: 0xA394A6),
-        accent: Color(hex: 0x9C89F2),
+        textSecondary: Color(hex: 0x7D6B81),
+        accent: Color(hex: 0x745AED),
         star: Color(hex: 0xF7C873),
         portal: Color(hex: 0x5B5260),
         blocks: [
@@ -181,7 +181,7 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0x351E3C),
         boardBackground: Color(hex: 0x2E1834),
         cell: Color(hex: 0x3E2447),
-        wall: Color(hex: 0x5A3763),
+        wall: Color(hex: 0x9A63A8),
         textPrimary: Color(hex: 0xFFEFE2),
         textSecondary: Color(hex: 0xC79BB4),
         accent: Color(hex: 0xFF7E5F),
@@ -203,7 +203,7 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0x0C3245),
         boardBackground: Color(hex: 0x0A2A3B),
         cell: Color(hex: 0x11405A),
-        wall: Color(hex: 0x1D5D7C),
+        wall: Color(hex: 0x2D8FBF),
         textPrimary: Color(hex: 0xE3F5FF),
         textSecondary: Color(hex: 0x7FB2C9),
         accent: Color(hex: 0x2ED3B7),
@@ -225,9 +225,9 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0xFDFFF6),
         boardBackground: Color(hex: 0xE0E8D2),
         cell: Color(hex: 0xEBF1DF),
-        wall: Color(hex: 0xA8B894),
+        wall: Color(hex: 0x7A905F),
         textPrimary: Color(hex: 0x2C3A26),
-        textSecondary: Color(hex: 0x74846A),
+        textSecondary: Color(hex: 0x64725B),
         accent: Color(hex: 0x4C9A57),
         star: Color(hex: 0xE8A93C),
         portal: Color(hex: 0x46503C),
@@ -247,10 +247,10 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0xFFF8EC),
         boardBackground: Color(hex: 0xEADFC8),
         cell: Color(hex: 0xF2E8D3),
-        wall: Color(hex: 0xC4AE8B),
+        wall: Color(hex: 0x9E8050),
         textPrimary: Color(hex: 0x4A3B2A),
-        textSecondary: Color(hex: 0x94836B),
-        accent: Color(hex: 0xE2703A),
+        textSecondary: Color(hex: 0x756855),
+        accent: Color(hex: 0xB34B1A),
         star: Color(hex: 0xE8A93C),
         portal: Color(hex: 0x4E4536),
         blocks: [
@@ -269,10 +269,10 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0xFFF6FA),
         boardBackground: Color(hex: 0xF7CFE2),
         cell: Color(hex: 0xFBE0EC),
-        wall: Color(hex: 0xE39BC0),
+        wall: Color(hex: 0xD05996),
         textPrimary: Color(hex: 0x54263E),
-        textSecondary: Color(hex: 0xB07A96),
-        accent: Color(hex: 0xFF5FA2),
+        textSecondary: Color(hex: 0x915675),
+        accent: Color(hex: 0xD20058),
         star: Color(hex: 0xFFB438),
         portal: Color(hex: 0x5E4450),
         blocks: [
@@ -291,10 +291,10 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0xFFFAF0),
         boardBackground: Color(hex: 0xEDD9BC),
         cell: Color(hex: 0xF3E4C9),
-        wall: Color(hex: 0xC49A6C),
+        wall: Color(hex: 0xA97944),
         textPrimary: Color(hex: 0x46311F),
-        textSecondary: Color(hex: 0x97815F),
-        accent: Color(hex: 0xD96C2F),
+        textSecondary: Color(hex: 0x7A684D),
+        accent: Color(hex: 0xAD5220),
         star: Color(hex: 0xE8A93C),
         portal: Color(hex: 0x52412C),
         blocks: [
@@ -313,7 +313,7 @@ nonisolated extension BlendPalette {
         surface: Color(hex: 0x191433),
         boardBackground: Color(hex: 0x130F28),
         cell: Color(hex: 0x1F1840),
-        wall: Color(hex: 0x37296B),
+        wall: Color(hex: 0x6F59BF),
         textPrimary: Color(hex: 0xEFEBFF),
         textSecondary: Color(hex: 0x8B7FB8),
         accent: Color(hex: 0xFF3DBB),
@@ -363,5 +363,17 @@ nonisolated extension Color {
             blue: b * (1 - amount),
             opacity: a
         )
+    }
+
+    /// Relative luminance (WCAG), used to pick readable ink for text drawn on the color.
+    var luminance: Double {
+        let c = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        c.getRed(&r, green: &g, blue: &b, alpha: &a)
+        func lin(_ v: CGFloat) -> Double {
+            let v = Double(v)
+            return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
     }
 }

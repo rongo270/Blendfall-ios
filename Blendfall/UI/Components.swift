@@ -47,6 +47,33 @@ func colorName(_ color: GameColor, _ s: Strings) -> String {
     }
 }
 
+/// The one-letter colorblind aid drawn on a block.
+///
+/// Deliberately its own string key rather than `colorName(color).prefix(1)`: taking the
+/// first letter of the localized name collides in several of the shipped languages —
+/// Hebrew כחול (blue) and כתום (orange) both start כ, German Gelb and Grün both start G —
+/// so the aid was ambiguous on exactly the pairs the blend mechanic produces.
+func cbLetter(_ color: GameColor, _ s: Strings) -> String {
+    switch color {
+    case .red: return s[.cb_red]
+    case .yellow: return s[.cb_yellow]
+    case .blue: return s[.cb_blue]
+    case .orange: return s[.cb_orange]
+    case .green: return s[.cb_green]
+    case .purple: return s[.cb_purple]
+    }
+}
+
+/// Readable ink for text sitting on a filled block or button.
+///
+/// White was hardcoded, but yellow, orange and green are all light blocks, so the
+/// colorblind letter and the swatch count — the two things most in need of being
+/// readable — were the least readable text in the app. Choosing by luminance clears the
+/// large-text bar on every block in all eleven palettes.
+func onBlockColor(_ block: Color) -> Color {
+    block.luminance > 0.4 ? Color(hex: 0x1A1A1A) : .white
+}
+
 func dirName(_ dir: Direction, _ s: Strings) -> String {
     switch dir {
     case .up: return s[.dir_up]
@@ -142,6 +169,8 @@ struct PressableButtonStyle: ButtonStyle {
 struct BackButton: View {
     let palette: BlendPalette
     var icon = "chevron.left"
+    /// Spoken name — without it VoiceOver finds a button and can only say "button".
+    var label: String?
     let action: () -> Void
 
     var body: some View {
@@ -149,10 +178,11 @@ struct BackButton: View {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(palette.textPrimary)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .background(palette.surface.opacity(0.8), in: Circle())
         }
         .buttonStyle(PressableButtonStyle())
+        .accessibilityLabel(label ?? "")
     }
 }
 
@@ -164,14 +194,23 @@ struct StarsRow: View {
     let palette: BlendPalette
     var spacing: Double = 4
 
+    /// Spoken instead of "star, star, star" — three identical icons say nothing about
+    /// how many of them are lit. Pass nil where an enclosing element already says it.
+    var label: String?
+
     var body: some View {
         HStack(spacing: spacing) {
             ForEach(0..<3, id: \.self) { i in
-                Image(systemName: "star.fill")
+                // An outline rather than a faint fill: earned-vs-unearned is then a
+                // difference in shape, not only in colour.
+                Image(systemName: i < earned ? "star.fill" : "star")
                     .font(.system(size: size))
-                    .foregroundStyle(i < earned ? palette.star : palette.textSecondary.opacity(0.25))
+                    .foregroundStyle(i < earned ? palette.star : palette.textSecondary.opacity(0.45))
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label ?? "")
+        .accessibilityHidden(label == nil)
     }
 }
 
@@ -295,10 +334,18 @@ struct PackBadge: View {
 /// LTR locales are unaffected. String resources with the same shape carry the same pair.
 func fraction(_ current: Int, _ total: Int) -> String { "\u{2066}\(current) / \(total)\u{2069}" }
 
+/// The width cap for the two screens whose main content is the board itself.
+let BoardContentWidth: Double = 720
+
 extension View {
     /// Caps a screen's content at phone width and centers it, so iPads don't get
     /// edge-to-edge stretched phone UI.
-    func phoneContentWidth() -> some View {
-        frame(maxWidth: 480)
+    ///
+    /// `max` exists for the play screens: menus read badly when a line of text runs the
+    /// width of an iPad, but the board is the opposite — it is the content, and holding
+    /// it to phone width was what left a tablet showing a small grid in a sea of
+    /// background.
+    func phoneContentWidth(_ max: Double = 480) -> some View {
+        frame(maxWidth: max)
     }
 }

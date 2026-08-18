@@ -55,7 +55,12 @@ struct HomeScreen: View {
                         LinearGradient(
                             colors: [
                                 palette.block(.red),
-                                palette.block(.yellow),
+                                // Raw yellow on a light background is ~1.5:1 — the middle
+                                // of the wordmark vanished on the six light themes. Dark
+                                // themes keep the block color as-is.
+                                palette.isDark
+                                    ? palette.block(.yellow)
+                                    : palette.block(.yellow).darken(0.42),
                                 palette.block(.blue),
                             ],
                             startPoint: .leading,
@@ -72,7 +77,7 @@ struct HomeScreen: View {
 
                 // The headline progress is Classic only — the packs are a side campaign.
                 let solved = Levels.classic.count { progress.starsFor($0.id) > 0 }
-                let totalStars = progress.stars.values.reduce(0, +)
+                let totalStars = Levels.classic.reduce(0) { $0 + progress.starsFor($1.id) }
                 if solved > 0 {
                     ProgressCard(
                         solved: solved,
@@ -103,7 +108,7 @@ struct HomeScreen: View {
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 62)
+                    .frame(minHeight: 62)
                     .chunky(fill: palette.accent, corner: 20, lip: 4)
                     .shadow(color: palette.accent.opacity(0.45), radius: 14, y: 8)
                 }
@@ -127,7 +132,7 @@ struct HomeScreen: View {
                         }
                         .foregroundStyle(palette.isDark ? palette.star : palette.star.darken(0.25))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 52)
+                        .frame(minHeight: 52)
                         .chunky(fill: palette.star.opacity(palette.isDark ? 0.24 : 0.30), corner: 16, lip: 3)
                     }
                     .buttonStyle(PressableButtonStyle())
@@ -141,7 +146,7 @@ struct HomeScreen: View {
                         }
                         .foregroundStyle(palette.textPrimary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 52)
+                        .frame(minHeight: 52)
                         .chunky(fill: palette.surface, corner: 16, lip: 3)
                     }
                     .buttonStyle(PressableButtonStyle())

@@ -48,7 +48,7 @@ struct PremiumScreen: View {
             VStack(spacing: 0) {
                 HStack {
                     Spacer()
-                    BackButton(palette: palette, icon: "xmark") { dismiss() }
+                    BackButton(palette: palette, icon: "xmark", label: s[.back]) { dismiss() }
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
@@ -77,6 +77,15 @@ struct PremiumScreen: View {
                             FeatureRow(icon: "heart.fill", text: s[.premium_feature_noads], palette: palette)
                         }
 
+                        // Premium really is only 3 themes and 2 shapes; the other six of
+                        // each belong to the packs below. Without saying so, Settings'
+                        // nine locked themes read as a promise this screen had broken.
+                        Text(s[.premium_packs_separate])
+                            .font(.system(size: 12, design: .rounded))
+                            .foregroundStyle(palette.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 6)
+
                         Spacer().frame(height: 10)
 
                         // Quick look at what Premium contains — tap to zoom in.
@@ -99,11 +108,21 @@ struct PremiumScreen: View {
                             Button {
                                 buy(StoreManager.premiumID)
                             } label: {
-                                Text(s[.premium_buy] + "  ·  " + (store.prices[StoreManager.premiumID] ?? s[.premium_price_fallback]))
+                                // No price until StoreKit actually tells us one: the old
+                                // fallback printed a hardcoded "$4.99" to players in every
+                                // country and currency.
+                                let price = store.prices[StoreManager.premiumID]
+                                Text(s[.premium_buy] + (price.map { "  ·  " + $0 } ?? ""))
                                     .font(.system(size: 17, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white)
+                                    // White on the star color measures under 2:1 in every
+                                    // palette, which made the money button the least
+                                    // readable text in the app.
+                                    .foregroundStyle(onBlockColor(palette.star))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.vertical, 8)
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 56)
+                                    .frame(minHeight: 56)
                                     .background(palette.star, in: RoundedRectangle(cornerRadius: 16))
                             }
                             .buttonStyle(PressableButtonStyle())
@@ -133,7 +152,7 @@ struct PremiumScreen: View {
                                 title: s[pack.nameKey],
                                 subtitle: s[pack.descKey],
                                 owned: ownedTiers.contains(pack.tier),
-                                price: store.prices[productId] ?? s[.pack_price_fallback],
+                                price: store.prices[productId],
                                 canBuy: store.canBuy,
                                 tier: pack.tier,
                                 palette: palette,
@@ -148,7 +167,7 @@ struct PremiumScreen: View {
                             title: s[.hints_pack_name],
                             subtitle: s[.hints_pack_desc] + " · " + s.f(.hints_left, progress.hints),
                             owned: false,
-                            price: store.prices[StoreManager.hintsID] ?? s[.hints_price_fallback],
+                            price: store.prices[StoreManager.hintsID],
                             canBuy: store.canBuy,
                             tier: nil,
                             palette: palette,
@@ -177,13 +196,12 @@ struct PremiumScreen: View {
                 let isPremiumTier = tier == .premium
                 let pack = storePacks.first { $0.tier == tier }
                 let productId = isPremiumTier ? StoreManager.premiumID : StoreManager.packProduct(pack!.packId)
-                let fallback = isPremiumTier ? s[.premium_price_fallback] : s[.pack_price_fallback]
                 QuickLookOverlay(
                     title: isPremiumTier ? s[.premium_title] : s[pack!.nameKey],
                     tier: tier,
                     showLevels: isPremiumTier,
                     owned: ownedTiers.contains(tier),
-                    price: store.prices[productId] ?? fallback,
+                    price: store.prices[productId],
                     canBuy: store.canBuy,
                     palette: palette,
                     s: s,
@@ -242,6 +260,9 @@ private struct GamePreviewBoard: View {
         }
         .padding(cellSize * 0.3)
         .background(preview.background, in: RoundedRectangle(cornerRadius: 12))
+        // Pinned LTR like the real board: a board is spatial, and in Hebrew and Arabic
+        // these previews mirrored while the game they are previewing does not.
+        .environment(\.layoutDirection, .leftToRight)
     }
 }
 
@@ -278,7 +299,8 @@ private struct QuickLookOverlay: View {
     let tier: Tier
     let showLevels: Bool
     let owned: Bool
-    let price: String
+    /// Null until StoreKit resolves a real, localized price — never a hardcoded figure.
+    let price: String?
     let canBuy: Bool
     let palette: BlendPalette
     let s: Strings
@@ -289,7 +311,7 @@ private struct QuickLookOverlay: View {
     @State private var selectedShape: BlockShape
 
     init(
-        title: String, tier: Tier, showLevels: Bool, owned: Bool, price: String,
+        title: String, tier: Tier, showLevels: Bool, owned: Bool, price: String?,
         canBuy: Bool, palette: BlendPalette, s: Strings,
         onBuy: @escaping () -> Void, onDismiss: @escaping () -> Void
     ) {
@@ -374,11 +396,14 @@ private struct QuickLookOverlay: View {
                             .foregroundStyle(palette.accent)
                     } else {
                         Button(action: onBuy) {
-                            Text(s[.store_buy] + " · " + price)
+                            Text(s[.store_buy] + (price.map { " · " + $0 } ?? ""))
                                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(onBlockColor(palette.star))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                                .padding(.vertical, 6)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 48)
+                                .frame(minHeight: 48)
                                 .background(palette.star, in: RoundedRectangle(cornerRadius: 14))
                         }
                         .buttonStyle(PressableButtonStyle())
@@ -428,7 +453,9 @@ private struct ThemeChip: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
+            // A full 44pt with the selected state spoken: the 2pt accent border was the
+            // only thing saying which theme is being previewed.
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(chipPalette.background, in: RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
@@ -439,6 +466,8 @@ private struct ThemeChip: View {
             )
         }
         .buttonStyle(PressableButtonStyle())
+        .accessibilityLabel(s[theme.nameKey])
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -462,6 +491,7 @@ private struct ShapeChip: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+            .frame(minHeight: 44)
             .background(palette.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
@@ -472,6 +502,8 @@ private struct ShapeChip: View {
             )
         }
         .buttonStyle(PressableButtonStyle())
+        .accessibilityLabel(s[shape.nameKey])
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -512,7 +544,8 @@ private struct ProductCard: View {
     let title: String
     let subtitle: String
     let owned: Bool
-    let price: String
+    /// Null until StoreKit resolves a real, localized price — never a hardcoded figure.
+    let price: String?
     let canBuy: Bool
     let tier: Tier?
     let palette: BlendPalette
@@ -525,33 +558,38 @@ private struct ProductCard: View {
         let packAccent = tier.flatMap { themesOf($0).first?.palette.accent } ?? palette.accent
 
         VStack(alignment: .leading, spacing: 0) {
+            // Title and Buy share a row; the description gets the full card width
+            // underneath. Previously all three sat in one row, so a description of any
+            // length wrapped into the space beside and below the button and left orphan
+            // fragments ("& Star blocks") hanging under it.
             HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .black, design: .rounded))
-                        .foregroundStyle(packAccent)
-                    Text(subtitle)
-                        .font(.system(size: 12, design: .rounded))
-                        .foregroundStyle(palette.textSecondary)
-                }
-                Spacer()
+                Text(title)
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .foregroundStyle(packAccent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if owned {
                     Text(s[.store_owned])
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(palette.accent)
                 } else {
                     Button(action: onBuy) {
-                        Text(s[.store_buy] + " · " + price)
+                        Text(s[.store_buy] + (price.map { " · " + $0 } ?? ""))
                             .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(onBlockColor(packAccent))
+                            .lineLimit(1)
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
+                            .frame(minHeight: 44)
                             .background(packAccent, in: RoundedRectangle(cornerRadius: 12))
                     }
                     .buttonStyle(PressableButtonStyle())
                     .disabled(!canBuy)
                 }
             }
+            Text(subtitle)
+                .font(.system(size: 12, design: .rounded))
+                .foregroundStyle(palette.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 4)
             if let tier {
                 PreviewStrip(tier: tier, palette: palette, s: s)
                     .padding(.top, 12)

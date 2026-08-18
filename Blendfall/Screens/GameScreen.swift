@@ -53,7 +53,7 @@ struct GameScreen: View {
                 // ---------- Top bar ----------
                 ZStack {
                     HStack {
-                        BackButton(palette: palette, action: onBack)
+                        BackButton(palette: palette, label: s[.back], action: onBack)
                         Spacer()
                     }
                     VStack(spacing: 1) {
@@ -70,11 +70,13 @@ struct GameScreen: View {
 
                 // ---------- Moves + potential stars ----------
                 HStack(spacing: 10) {
+                    let potential = Engine.starsFor(par: level.par, moves: vm.play.moveCount)
                     StarsRow(
-                        earned: Engine.starsFor(par: level.par, moves: vm.play.moveCount),
+                        earned: potential,
                         size: 14,
                         palette: palette,
-                        spacing: 2
+                        spacing: 2,
+                        label: s.f(.a11y_stars_earned, potential)
                     )
                     // With a limit the counter runs against the limit — the star pips
                     // already say where par sits, and "7 / 4" would just look like a bug.
@@ -141,7 +143,7 @@ struct GameScreen: View {
                 }
 
                 // ---------- Color swatches ----------
-                SwatchRow(play: vm.play, palette: palette, hintColor: vm.hint?.color)
+                SwatchRow(play: vm.play, palette: palette, strings: s, hintColor: vm.hint?.color)
                     .padding(.top, 6)
 
                 // ---------- Action buttons ----------
@@ -186,7 +188,7 @@ struct GameScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
             }
-            .phoneContentWidth()
+            .phoneContentWidth(BoardContentWidth)
 
             // ---------- Out of moves ----------
             if vm.play.failed {
@@ -243,7 +245,10 @@ struct GameScreen: View {
             }
         }
         .alert(s[.hints_out_title], isPresented: $showHintsOut) {
-            Button(s.f(.hints_buy, store.prices[StoreManager.hintsID] ?? s[.hints_price_fallback])) {
+            // No price until StoreKit actually gives us one: the old fallback printed a
+            // hardcoded "$0.99" to players in every country and currency.
+            let hintsPrice = store.prices[StoreManager.hintsID]
+            Button(hintsPrice.map { s.f(.hints_buy, $0) } ?? s[.hints_buy_no_price]) {
                 Task { await store.buy(StoreManager.hintsID) }
             }
             .disabled(!store.canBuy)
@@ -303,8 +308,19 @@ struct BoardView: View {
     var body: some View {
         let board = play.parsed.board
 
+        let filled = play.blocks.count { board.targetAt($0.x, $0.y) == $0.color }
+        let boardSummary = strings.f(
+            .a11y_board, board.width, board.height, filled, board.targets.count
+        )
+
         GeometryReader { geo in
-            let cell = min(geo.size.width / Double(board.width), geo.size.height / Double(board.height), 64)
+            // The cap stops a 3x3 tutorial board from becoming enormous, but a flat 64pt
+            // left roughly half of a tall iPhone empty above and below the grid, and
+            // shrank an iPad's board to a small square adrift in the middle. Scaling the
+            // cap with the space actually available keeps small boards sane and lets big
+            // screens use what they have.
+            let cap: Double = if geo.size.width >= 600 { 104 } else if geo.size.width >= 480 { 88 } else { 76 }
+            let cell = min(geo.size.width / Double(board.width), geo.size.height / Double(board.height), cap)
             let boardW = cell * Double(board.width)
             let boardH = cell * Double(board.height)
             // A block mid-warp is hidden: WarpTrip below is showing its trip, and leaving
@@ -355,14 +371,25 @@ struct BoardView: View {
                                 )
                                 let cx = origin.x + cell / 2
                                 let cy = origin.y + cell / 2
-                                let r = cell * 0.13
-                                var diamond = Path()
-                                diamond.move(to: CGPoint(x: cx, y: cy - r))
-                                diamond.addLine(to: CGPoint(x: cx + r, y: cy))
-                                diamond.addLine(to: CGPoint(x: cx, y: cy + r))
-                                diamond.addLine(to: CGPoint(x: cx - r, y: cy))
-                                diamond.closeSubpath()
-                                ctx.fill(diamond, with: .color(tint.opacity(0.55)))
+                                if colorblind {
+                                    // Blocks carry their letter but targets used to be
+                                    // colour and nothing else, so a colorblind player
+                                    // could read "this block is R" and still not know
+                                    // which square wanted it.
+                                    let glyph = Text(cbLetter(target, strings))
+                                        .font(.system(size: cell * 0.30, weight: .black, design: .rounded))
+                                        .foregroundStyle(tint)
+                                    ctx.draw(glyph, at: CGPoint(x: cx, y: cy), anchor: .center)
+                                } else {
+                                    let r = cell * 0.13
+                                    var diamond = Path()
+                                    diamond.move(to: CGPoint(x: cx, y: cy - r))
+                                    diamond.addLine(to: CGPoint(x: cx + r, y: cy))
+                                    diamond.addLine(to: CGPoint(x: cx, y: cy + r))
+                                    diamond.addLine(to: CGPoint(x: cx - r, y: cy))
+                                    diamond.closeSubpath()
+                                    ctx.fill(diamond, with: .color(tint.opacity(0.55)))
+                                }
                             }
 
                             drawSpecialTile(
@@ -378,6 +405,10 @@ struct BoardView: View {
                     }
                 }
                 .frame(width: boardW, height: boardH)
+                // Without this the board is a blank rectangle to VoiceOver: no size, no
+                // sense of how much of the puzzle is already solved.
+                .accessibilityElement()
+                .accessibilityLabel(boardSummary)
 
                 // Blocks
                 ForEach(play.blocks.filter { !warping.contains($0.id) }) { block in
@@ -526,6 +557,13 @@ private struct BlockTile: View {
     let strings: Strings
 
     var body: some View {
+        // Without this a screen reader finds an unlabeled shape and can say nothing
+        // about what colour it is, where it sits, or whether it is already home.
+        let label = strings.f(
+            satisfied ? .a11y_block_on_target : .a11y_block,
+            colorName(block.color, strings), block.x + 1, block.y + 1
+        )
+
         BlockView(color: block.color, palette: palette, shape: blockShape)
             .overlay(
                 TileShape(kind: blockShape)
@@ -536,13 +574,16 @@ private struct BlockTile: View {
             )
             .overlay {
                 if colorblind {
-                    Text(String(colorName(block.color, strings).prefix(1)))
+                    Text(cbLetter(block.color, strings))
                         .font(.system(size: 16, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(onBlockColor(palette.block(block.color)))
                 }
             }
             .padding(cell * 0.07)
             .frame(width: cell, height: cell)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             .offset(x: Double(block.x) * cell, y: Double(block.y) * cell)
             .animation(.easeInOut(duration: 0.24), value: block.color)
     }
@@ -655,20 +696,22 @@ private struct WarpFlare: View {
 struct SwatchRow: View {
     let play: PuzzleState
     let palette: BlendPalette
+    let strings: Strings
     var hintColor: GameColor?
 
     var body: some View {
         let counts = Dictionary(grouping: play.blocks, by: \.color).mapValues(\.count)
-        HStack(spacing: 14) {
+        HStack(spacing: 8) {
             ForEach(GameColor.allCases, id: \.self) { color in
                 if let count = counts[color], count > 0 {
                     let isSelected = play.selected == color
                     let isHinted = hintColor == color
+                    let tint = palette.block(color)
                     Button {
                         play.select(color)
                     } label: {
                         Circle()
-                            .fill(palette.block(color))
+                            .fill(tint)
                             .frame(width: isSelected ? 46 : 38, height: isSelected ? 46 : 38)
                             .overlay(
                                 Circle().stroke(
@@ -680,11 +723,18 @@ struct SwatchRow: View {
                                 if count > 1 {
                                     Text("\(count)")
                                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(onBlockColor(tint))
                                 }
                             }
+                            // The swatch draws at 38-46pt, but choosing a color is the
+                            // primary interaction on this screen: the hit area lives on a
+                            // full 48pt box around it, so a mis-tap can't cost a move.
+                            .frame(width: 48, height: 48)
+                            .contentShape(Circle())
                     }
                     .buttonStyle(PressableButtonStyle())
+                    .accessibilityLabel(strings.f(.a11y_swatch, colorName(color, strings), count))
+                    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                 }
             }
         }
@@ -731,7 +781,7 @@ private struct OutOfMovesOverlay: View {
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(minHeight: 50)
                     .background(palette.accent, in: RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(PressableButtonStyle())
@@ -787,14 +837,18 @@ struct WinOverlay: View {
                 HStack(spacing: 8) {
                     ForEach(0..<3, id: \.self) { i in
                         let earned = i < shown
-                        Image(systemName: "star.fill")
+                        Image(systemName: earned ? "star.fill" : "star")
                             .font(.system(size: earned ? 40 : 32))
-                            .foregroundStyle(earned ? palette.star : palette.textSecondary.opacity(0.25))
+                            .foregroundStyle(earned ? palette.star : palette.textSecondary.opacity(0.45))
                             .scaleEffect(earned ? 1 : 0.9)
                             .animation(.spring(response: 0.3, dampingFraction: 0.5), value: earned)
                     }
                 }
                 .padding(.top, 14)
+                // The stars land one at a time, so the count has to be spoken as it
+                // settles rather than read off three identical icons.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(s.f(.a11y_stars_earned, shown))
 
                 Text(s.plural(.win_moves, moves))
                     .font(.system(size: 14, design: .rounded))
@@ -840,7 +894,7 @@ struct WinOverlay: View {
                             .font(.system(size: 17, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 50)
+                            .frame(minHeight: 50)
                             .background(palette.accent, in: RoundedRectangle(cornerRadius: 14))
                     }
                     .buttonStyle(PressableButtonStyle())
@@ -851,7 +905,7 @@ struct WinOverlay: View {
                             .font(.system(size: 17, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 50)
+                            .frame(minHeight: 50)
                             .background(palette.star, in: RoundedRectangle(cornerRadius: 14))
                     }
                     .buttonStyle(PressableButtonStyle())

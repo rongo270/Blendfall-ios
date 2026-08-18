@@ -85,6 +85,30 @@ xcrun swiftc -O -o /tmp/verify \
 
 Last run: 460 levels, all solvable at par, 155 pickup stars.
 
+## Accessibility
+
+Mirrors the Android a11y pass, in iOS terms:
+
+- Every block is a labelled button — colour, column, row, and whether it is already on
+  its target — with the selected colour carrying `.isSelected`.
+- The board's static layer speaks its size and how many targets are filled.
+- Swatches sit in a full 48pt hit target, are labelled with colour + count, and report
+  the selected one; the same for theme, shape and Blitz-duration chips.
+- Level chips merge into one label (`Level 12, 2 of 3 stars` / `not solved` / `locked`)
+  rather than reading out a bare number.
+- Star rows speak "n of 3 stars"; unearned stars are an outline, not a faint fill, so
+  the difference is shape as well as colour.
+- Blitz's clock is labelled and marked `.updatesFrequently`.
+- The colourblind letter is its own string per language (`cb_*`), never the first letter
+  of the colour name — Hebrew כחול/כתום and German Gelb/Grün collide. Targets carry the
+  letter too, and ink on blocks/buttons is picked by luminance (`onBlockColor`).
+
+**Known gap:** the UI uses fixed point sizes, so it does not respond to Dynamic Type.
+Android's `sp` scales for free, which is why its buttons moved to `heightIn`; the iOS
+buttons carry the matching `minHeight`, but nothing scales into it yet. Supporting
+Dynamic Type properly means moving ~200 `.font(.system(size:))` call sites onto scaled
+metrics and re-checking every screen — a deliberate piece of work, not a parity fix.
+
 ## Status
 
 - [x] Engine (incl. portals, pickups, gates, painters, cracks), solver, 11 themes,
@@ -93,7 +117,9 @@ Last run: 460 levels, all solvable at par, 155 pickup stars.
       solver-verified at par
 - [x] Home / Chapters / Level grid / Game / Blitz / Premium / Settings / Onboarding
 - [x] StoreKit 2 + Products.storekit test config
-- [x] Builds and runs on iPhone simulator (Debug and Release)
+- [x] Builds and runs on iPhone simulator (Debug and Release) and on iPad
+- [x] VoiceOver labels across board, swatches, level chips, stars, store and settings
+- [ ] Dynamic Type (see Accessibility above)
 - [x] App Store files: `AppStore_Listing.md` (incl. the 5 IAPs + pricing), `PRIVACY.md`,
       `SUPPORT.md`, `AppStore_Screenshots/` (iPhone 6.9" + iPad 13" + IAP review shot)
 - [x] v1.0 (build 1) archive in Xcode Organizer (`Archives/2026-07-17`)

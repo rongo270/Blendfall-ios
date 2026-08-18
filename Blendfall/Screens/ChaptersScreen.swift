@@ -19,7 +19,7 @@ struct ChaptersScreen: View {
         let palette = progress.palette
         let s = progress.strings
 
-        SelectScaffold(title: s[.levels_title], palette: palette, onBack: onBack) {
+        SelectScaffold(title: s[.levels_title], palette: palette, backLabel: s[.back], onBack: onBack) {
             LazyVStack(spacing: 10) {
                 ForEach(Array(Levels.chapters.enumerated()), id: \.element.id) { index, chapter in
                     let unlocked = Levels.chapterUnlocked(
@@ -82,7 +82,7 @@ struct LevelGridScreen: View {
         let title = group.numeral.map { s.f(.chapter_label, $0) + " · " + s[group.nameKey] }
             ?? s[group.nameKey]
 
-        SelectScaffold(title: title, palette: palette, onBack: onBack) {
+        SelectScaffold(title: title, palette: palette, backLabel: s[.back], onBack: onBack) {
             LazyVStack(spacing: 8) {
                 if let blurb = group.blurbKey {
                     Text(s[blurb])
@@ -129,13 +129,14 @@ struct LevelGridScreen: View {
 private struct SelectScaffold<Content: View>: View {
     let title: String
     let palette: BlendPalette
+    let backLabel: String
     let onBack: () -> Void
     @ViewBuilder let content: Content
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                BackButton(palette: palette, action: onBack)
+                BackButton(palette: palette, label: backLabel, action: onBack)
                 Text(title)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(palette.textPrimary)
@@ -213,6 +214,7 @@ private struct ChapterCard: View {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 16))
                         .foregroundStyle(needsPremium ? palette.star : palette.textSecondary)
+                        .accessibilityLabel(s[.locked])
                 }
             }
             .padding(14)
@@ -381,13 +383,24 @@ private struct LevelChip: View {
         let playable = Levels.isUnlocked(level, stars: progress.stars, premium: progress.premium)
         let starsHere = Levels.pickupsIn(level)
         let starsFound = progress.pickupsFor(level.id)
+        let s = progress.strings
+        let number = Levels.displayNumber(level)
+        // One merged label per chip: the pips inside are decorative, so without this a
+        // screen reader read out a bare number and never mentioned stars or the lock.
+        let label = if !playable {
+            s.f(.a11y_level_locked, number)
+        } else if earned > 0 {
+            s.f(.a11y_level_stars, number, earned)
+        } else {
+            s.f(.a11y_level_unsolved, number)
+        }
 
         Button {
             if playable { onLevel(level.id) }
         } label: {
             VStack(spacing: 2) {
                 if playable {
-                    Text("\(Levels.displayNumber(level))")
+                    Text("\(number)")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(palette.textPrimary)
                 } else {
@@ -410,7 +423,7 @@ private struct LevelChip: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 48)
             .padding(.vertical, 8)
             .background(
                 earned > 0 ? palette.accent.opacity(0.18) : palette.cell,
@@ -420,5 +433,8 @@ private struct LevelChip: View {
         .buttonStyle(PressableButtonStyle())
         .disabled(!playable)
         .opacity(playable ? 1 : 0.45)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(.isButton)
     }
 }

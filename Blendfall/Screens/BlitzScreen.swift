@@ -45,7 +45,7 @@ private struct BlitzSetup: View {
 
         VStack(spacing: 0) {
             HStack {
-                BackButton(palette: palette, action: onBack)
+                BackButton(palette: palette, label: s[.back], action: onBack)
                 Spacer()
             }
             .padding(.horizontal, 12)
@@ -83,13 +83,13 @@ private struct BlitzSetup: View {
             Spacer().frame(height: 32)
 
             Button {
-                vm.start(currentBest: progress.blitzBests[vm.durationSec] ?? 0)
+                vm.start(currentBest: progress.blitzBests[vm.durationSec] ?? 0, premium: progress.premium)
             } label: {
                 Text(s[.blitz_start])
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 56)
+                    .frame(minHeight: 56)
                     .background(palette.accent, in: RoundedRectangle(cornerRadius: 16))
             }
             .buttonStyle(PressableButtonStyle())
@@ -126,7 +126,7 @@ private struct DurationCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 48)
             .padding(.vertical, 14)
             .background(palette.surface, in: RoundedRectangle(cornerRadius: 16))
             .overlay(
@@ -138,6 +138,8 @@ private struct DurationCard: View {
             )
         }
         .buttonStyle(PressableButtonStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -158,7 +160,7 @@ private struct BlitzPlay: View {
                     // ---------- Top bar: exit · clock · score ----------
                     ZStack {
                         HStack {
-                            BackButton(palette: palette, icon: "xmark") { vm.exitToSetup() }
+                            BackButton(palette: palette, icon: "xmark", label: s[.blitz_exit]) { vm.exitToSetup() }
                             Spacer()
                             HStack(spacing: 4) {
                                 Image(systemName: "star.fill")
@@ -169,6 +171,10 @@ private struct BlitzPlay: View {
                                     .foregroundStyle(palette.textPrimary)
                                     .contentTransition(.numericText())
                             }
+                            // Otherwise the running score reads as a bare number with no
+                            // hint of what it counts.
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("\(s[.blitz_score]): \(vm.score)")
                             .padding(.trailing, 6)
                         }
                         let urgent = vm.remainingSec <= 10
@@ -176,6 +182,8 @@ private struct BlitzPlay: View {
                             .font(.system(size: 28, weight: .black, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(urgent ? palette.accent : palette.textPrimary)
+                            .accessibilityLabel(s.f(.a11y_time_left, vm.remainingSec))
+                            .accessibilityAddTraits(.updatesFrequently)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 2)
@@ -192,7 +200,7 @@ private struct BlitzPlay: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
 
-                    SwatchRow(play: play, palette: palette)
+                    SwatchRow(play: play, palette: palette, strings: s)
 
                     // ---------- Actions ----------
                     HStack(spacing: 12) {
@@ -218,7 +226,7 @@ private struct BlitzPlay: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 10)
                 }
-                .phoneContentWidth()
+                .phoneContentWidth(BoardContentWidth)
             }
 
             if vm.phase == .finished {
@@ -275,20 +283,20 @@ private struct BlitzResultOverlay: View {
                 Spacer().frame(height: 20)
 
                 Button {
-                    vm.start(currentBest: progress.blitzBests[vm.durationSec] ?? 0)
+                    vm.start(currentBest: progress.blitzBests[vm.durationSec] ?? 0, premium: progress.premium)
                 } label: {
                     Text(s[.blitz_play_again])
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 50)
+                        .frame(minHeight: 50)
                         .background(palette.accent, in: RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(PressableButtonStyle())
 
                 HStack(spacing: 8) {
-                    Button(s[.back]) { vm.exitToSetup() }
-                    Button(s[.blitz_exit], action: onExit)
+                    Button(s[.blitz_change_time]) { vm.exitToSetup() }
+                    Button(s[.blitz_home], action: onExit)
                 }
                 .font(.system(size: 15, design: .rounded))
                 .foregroundStyle(palette.textSecondary)

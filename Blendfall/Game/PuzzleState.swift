@@ -307,15 +307,26 @@ final class BlitzModel {
 
     /// Difficulty ladder: Classic levels grouped by par, easiest rung first. Blitz stays
     /// out of the mechanic packs — there is no time in a speed run to read a new tile.
-    private let ladder: [[Level]] = Dictionary(grouping: Levels.classic, by: \.par)
-        .sorted { $0.key < $1.key }
-        .map(\.value)
+    ///
+    /// Two ladders, because chapters IV-VI are behind the premium purchase: drawing from
+    /// the whole catalog handed those boards to everyone through Blitz, which is the one
+    /// mode that never checks a gate. Buyers still get the full range.
+    private static func ladderOf(_ levels: [Level]) -> [[Level]] {
+        Dictionary(grouping: levels, by: \.par)
+            .sorted { $0.key < $1.key }
+            .map(\.value)
+    }
+
+    private static let freeLadder = ladderOf(Levels.chapters.filter { !$0.premium }.flatMap(\.levels))
+    private static let fullLadder = ladderOf(Levels.classic)
+    private var ladder: [[Level]] = BlitzModel.freeLadder
 
     func selectDuration(_ sec: Int) {
         if phase == .setup { durationSec = sec }
     }
 
-    func start(currentBest: Int) {
+    func start(currentBest: Int, premium: Bool = false) {
+        ladder = premium ? BlitzModel.fullLadder : BlitzModel.freeLadder
         bestAtStart = currentBest
         score = 0
         isNewBest = false

@@ -77,7 +77,7 @@ struct OnboardingOverlay: View {
                         .font(.system(size: 17, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
+                        .frame(minHeight: 54)
                         .background(palette.accent, in: RoundedRectangle(cornerRadius: 16))
                 }
                 .buttonStyle(PressableButtonStyle())
