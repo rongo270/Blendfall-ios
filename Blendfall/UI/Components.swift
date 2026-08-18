@@ -24,7 +24,10 @@ enum Haptics {
         case .slide: light.impactOccurred()
         case .fuse: rigid.impactOccurred(intensity: 1.0)
         case .blocked: soft.impactOccurred(intensity: 0.6)
+        case .pickup: light.impactOccurred(intensity: 0.5)
+        case .warp: rigid.impactOccurred(intensity: 0.8)
         case .win: notify.notificationOccurred(.success)
+        case .fail: notify.notificationOccurred(.error)
         }
     }
 
@@ -172,7 +175,125 @@ struct StarsRow: View {
     }
 }
 
+// MARK: - Pickup star
+
+/// Star Hunt's collectible, drawn rather than iconified so the board and the UI counters
+/// share one shape and can never drift apart.
+///
+/// A five-pointed star, lit from the top: the body carries a vertical gradient and the
+/// points are outlined a shade lighter, which keeps the silhouette readable at 14pt in a
+/// progress row as well as at 40pt on a board cell.
+private let starInnerRatio = 0.45
+private let starPoints = 5
+
+/// The star's silhouette, sized so `radius` is the distance to a point.
+func pickupStarPath(center: CGPoint, radius: Double) -> Path {
+    var path = Path()
+    for i in 0..<(starPoints * 2) {
+        let r = i.isMultiple(of: 2) ? radius : radius * starInnerRatio
+        // Start at the top so the star always sits upright.
+        let angle = -Double.pi / 2 + Double(i) * Double.pi / Double(starPoints)
+        let p = CGPoint(x: center.x + r * cos(angle), y: center.y + r * sin(angle))
+        if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+    }
+    path.closeSubpath()
+    return path
+}
+
+/// Draws a collectible star centered on `center`, with `radius` out to its points.
+/// Used by the board canvas for an uncollected pickup and by `PickupStarIcon` everywhere
+/// a pickup star appears in the UI.
+func drawPickupStar(_ ctx: inout GraphicsContext, center: CGPoint, radius: Double, color: Color) {
+    let outline = pickupStarPath(center: center, radius: radius)
+    ctx.fill(
+        outline,
+        with: .linearGradient(
+            Gradient(colors: [color.lighten(0.32), color, color.darken(0.22)]),
+            startPoint: CGPoint(x: center.x, y: center.y - radius),
+            endPoint: CGPoint(x: center.x, y: center.y + radius)
+        )
+    )
+    // A thin lighter edge, thin enough to vanish at small sizes rather than muddy the
+    // points.
+    ctx.stroke(outline, with: .color(color.lighten(0.45).opacity(0.9)), lineWidth: radius * 0.10)
+}
+
+/// The pickup star as a UI element, for counters and pack cards. Sized like an SF Symbol
+/// so it drops into an HStack beside text without extra alignment work.
+struct PickupStarIcon: View {
+    let size: Double
+    let color: Color
+
+    var body: some View {
+        Canvas { ctx, canvasSize in
+            let radius = min(canvasSize.width, canvasSize.height) / 2 * 0.98
+            var c = ctx
+            drawPickupStar(
+                &c,
+                center: CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2),
+                radius: radius,
+                color: color
+            )
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+// MARK: - Pack badge
+
+/// A pack's signature tile, drawn at badge size for its card.
+///
+/// These are the same marks the board draws on the cells themselves, so a card is a
+/// picture of the thing the pack is about rather than a generic decoration — you can
+/// recognise a Portals level from the list before opening it.
+struct PackBadge: View {
+    let packId: String
+    let palette: BlendPalette
+    let size: Double
+
+    var body: some View {
+        Canvas { ctx, canvasSize in
+            let c = min(canvasSize.width, canvasSize.height)
+            let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
+            switch packId {
+            case "starhunt":
+                var g = ctx
+                drawPickupStar(&g, center: center, radius: c * 0.30, color: palette.star)
+            case "portals":
+                ctx.stroke(
+                    Path(ellipseIn: CGRect(
+                        x: center.x - c * 0.30, y: center.y - c * 0.30,
+                        width: c * 0.60, height: c * 0.60
+                    )),
+                    with: .color(palette.portal),
+                    lineWidth: c * 0.09
+                )
+                ctx.stroke(
+                    Path(ellipseIn: CGRect(
+                        x: center.x - c * 0.15, y: center.y - c * 0.15,
+                        width: c * 0.30, height: c * 0.30
+                    )),
+                    with: .color(palette.portal.opacity(0.5)),
+                    lineWidth: c * 0.07
+                )
+            default:
+                break
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
 // MARK: - Layout helpers
+
+/// Formats "3 / 80" so it keeps its own left-to-right order inside an RTL sentence.
+///
+/// Without the isolate, Hebrew and Arabic render `0 / 6` as `6 / 0`: the two digit runs
+/// are separated by neutral characters, the neutrals take the paragraph's RTL direction,
+/// and the runs get laid out right-to-left — so a player on move 0 of 6 reads that they
+/// are on move 6 of 0. U+2066/U+2069 pin the fragment; they are invisible either way, so
+/// LTR locales are unaffected. String resources with the same shape carry the same pair.
+func fraction(_ current: Int, _ total: Int) -> String { "\u{2066}\(current) / \(total)\u{2069}" }
 
 extension View {
     /// Caps a screen's content at phone width and centers it, so iPads don't get

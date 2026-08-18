@@ -33,6 +33,10 @@ final class ProgressStore {
     private(set) var onboardingDone: Bool
     /// levelId -> stars (absent = unsolved).
     private(set) var stars: [String: Int]
+    /// Star Hunt: levelId -> most stars ever swept up there. Read back clamped to what
+    /// the board actually holds, so a saved best left over from an older, star-richer
+    /// version of a level can never inflate the total past what is collectable today.
+    private(set) var pickups: [String: Int]
     /// durationSec -> best blitz score.
     private(set) var blitzBests: [Int: Int]
     /// nil = follow the system language.
@@ -65,6 +69,7 @@ final class ProgressStore {
         hints = defaults.object(forKey: Keys.hints) as? Int ?? Self.startingHints
         onboardingDone = defaults.bool(forKey: Keys.onboardingDone)
         stars = (defaults.dictionary(forKey: Keys.stars) as? [String: Int]) ?? [:]
+        pickups = (defaults.dictionary(forKey: Keys.pickups) as? [String: Int]) ?? [:]
         let rawBlitz = (defaults.dictionary(forKey: Keys.blitz) as? [String: Int]) ?? [:]
         blitzBests = Dictionary(uniqueKeysWithValues: rawBlitz.compactMap { key, value in
             Int(key).map { ($0, value) }
@@ -139,22 +144,53 @@ final class ProgressStore {
 
     func starsFor(_ levelId: String) -> Int { stars[levelId] ?? 0 }
 
-    func recordWin(_ levelId: String, stars earned: Int) {
+    /// This level's Star Hunt record, capped at what its board actually holds.
+    func pickupsFor(_ levelId: String) -> Int {
+        min(pickups[levelId] ?? 0, Levels.pickupsIn(Levels.byId(levelId)))
+    }
+
+    /// Stars collected across the whole game.
+    ///
+    /// Deliberately derived from the per-level bests rather than banked as a running
+    /// counter: replaying a level you already swept adds nothing, and going back to a
+    /// level you half-cleared and sweeping all three moves the total by exactly the ones
+    /// you had not found yet. There is no second copy of the record to drift out of step.
+    var pickupsCollected: Int {
+        Levels.all.reduce(0) { $0 + min(pickups[$1.id] ?? 0, Levels.pickupsIn($1)) }
+    }
+
+    func recordWin(_ levelId: String, stars earned: Int, collected: Int = 0) {
         if earned > (stars[levelId] ?? 0) {
             stars[levelId] = earned
             defaults.set(stars, forKey: Keys.stars)
         }
+        recordPickups(levelId, collected: collected)
     }
 
-    /// First unsolved unlocked level, for the Continue button.
+    /// Records a Star Hunt run's stars, keeping only this level's best. Beating your own
+    /// record raises it; matching or missing it changes nothing.
+    ///
+    /// - Returns: how many stars this run added to the player's total (0 if it was not a
+    ///   personal best for this level).
+    @discardableResult
+    func recordPickups(_ levelId: String, collected: Int) -> Int {
+        guard collected > 0 else { return 0 }
+        let old = pickups[levelId] ?? 0
+        let next = max(old, collected)
+        guard next > old else { return 0 }
+        pickups[levelId] = next
+        defaults.set(pickups, forKey: Keys.pickups)
+        return next - old
+    }
+
+    /// First unsolved playable Classic level, for the Continue button. Master levels are
+    /// optional, so a locked star gate never strands Continue — it just moves past them.
     func continueLevelId() -> String {
-        for pack in Levels.packs {
-            if pack.premium && !premium { continue }
-            for level in pack.levels where (stars[level.id] ?? 0) == 0 {
-                return level.id
-            }
+        let first = Levels.classic.first { level in
+            (stars[level.id] ?? 0) == 0
+                && Levels.isUnlocked(level, stars: stars, premium: premium)
         }
-        return Levels.all.first!.id
+        return first?.id ?? Levels.classic.first!.id
     }
 
     /// @discardableResult true when `score` is a new best for this duration.
@@ -182,6 +218,7 @@ final class ProgressStore {
         static let hints = "hints_left"
         static let onboardingDone = "onboarding_done"
         static let stars = "stars"
+        static let pickups = "pickups"
         static let blitz = "blitz_bests"
         static let language = "language"
         static func pack(_ packId: String) -> String { "pack_\(packId)" }

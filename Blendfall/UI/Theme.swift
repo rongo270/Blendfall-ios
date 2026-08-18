@@ -69,6 +69,11 @@ nonisolated struct BlendPalette: Sendable {
     let textSecondary: Color
     let accent: Color
     let star: Color
+    /// Portal mouths. Deliberately achromatic: blocks already occupy all six hues
+    /// (red/yellow/blue and orange/green/purple), so a portal drawn in *any* hue reads as
+    /// belonging to that color — an accent-blue portal looks like it only takes blue
+    /// blocks. A near-neutral says "board furniture, open to everyone" instead.
+    let portal: Color
     let blocks: [GameColor: Color]
 
     func block(_ color: GameColor) -> Color { blocks[color]! }
@@ -93,6 +98,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0x8A8272),
         accent: Color(hex: 0x5B8DEF),
         star: Color(hex: 0xF5B301),
+        portal: Color(hex: 0x4A4441),
         blocks: [
             .red: Color(hex: 0xE94F4F),
             .yellow: Color(hex: 0xF5C518),
@@ -114,6 +120,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0x8D92AC),
         accent: Color(hex: 0x7AA2FF),
         star: Color(hex: 0xFFC94D),
+        portal: Color(hex: 0xC9CEE6),
         blocks: [
             .red: Color(hex: 0xFF5D5D),
             .yellow: Color(hex: 0xFFD447),
@@ -135,6 +142,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0x7C7C9E),
         accent: Color(hex: 0x00E5FF),
         star: Color(hex: 0xFFE04D),
+        portal: Color(hex: 0xD8DCF0),
         blocks: [
             .red: Color(hex: 0xFF2E63),
             .yellow: Color(hex: 0xFFEA00),
@@ -156,6 +164,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0xA394A6),
         accent: Color(hex: 0x9C89F2),
         star: Color(hex: 0xF7C873),
+        portal: Color(hex: 0x5B5260),
         blocks: [
             .red: Color(hex: 0xF08E9B),
             .yellow: Color(hex: 0xF6D488),
@@ -177,6 +186,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0xC79BB4),
         accent: Color(hex: 0xFF7E5F),
         star: Color(hex: 0xFFC15E),
+        portal: Color(hex: 0xE4D6EA),
         blocks: [
             .red: Color(hex: 0xFF5470),
             .yellow: Color(hex: 0xFFC15E),
@@ -198,6 +208,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0x7FB2C9),
         accent: Color(hex: 0x2ED3B7),
         star: Color(hex: 0xFFD166),
+        portal: Color(hex: 0xD2E4EE),
         blocks: [
             .red: Color(hex: 0xFF6B6B),
             .yellow: Color(hex: 0xFFD93D),
@@ -219,6 +230,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0x74846A),
         accent: Color(hex: 0x4C9A57),
         star: Color(hex: 0xE8A93C),
+        portal: Color(hex: 0x46503C),
         blocks: [
             .red: Color(hex: 0xD95D4E),
             .yellow: Color(hex: 0xE9BB35),
@@ -240,6 +252,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0x94836B),
         accent: Color(hex: 0xE2703A),
         star: Color(hex: 0xE8A93C),
+        portal: Color(hex: 0x4E4536),
         blocks: [
             .red: Color(hex: 0xD94F30),
             .yellow: Color(hex: 0xE3B505),
@@ -261,6 +274,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0xB07A96),
         accent: Color(hex: 0xFF5FA2),
         star: Color(hex: 0xFFB438),
+        portal: Color(hex: 0x5E4450),
         blocks: [
             .red: Color(hex: 0xFF4D6D),
             .yellow: Color(hex: 0xFFC53D),
@@ -282,6 +296,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0x97815F),
         accent: Color(hex: 0xD96C2F),
         star: Color(hex: 0xE8A93C),
+        portal: Color(hex: 0x52412C),
         blocks: [
             .red: Color(hex: 0xC94F35),
             .yellow: Color(hex: 0xE0A526),
@@ -303,6 +318,7 @@ nonisolated extension BlendPalette {
         textSecondary: Color(hex: 0x8B7FB8),
         accent: Color(hex: 0xFF3DBB),
         star: Color(hex: 0xFFDF3D),
+        portal: Color(hex: 0xDCD5F2),
         blocks: [
             .red: Color(hex: 0xFF3D5A),
             .yellow: Color(hex: 0xFFE43D),

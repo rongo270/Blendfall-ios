@@ -44,6 +44,7 @@ struct GameScreen: View {
     var body: some View {
         let palette = progress.palette
         let s = progress.strings
+        let group = Levels.groupOf(level)
 
         ZStack {
             palette.background.ignoresSafeArea()
@@ -56,10 +57,10 @@ struct GameScreen: View {
                         Spacer()
                     }
                     VStack(spacing: 1) {
-                        Text(s.f(.level_label, Levels.globalNumber(level.id)))
+                        Text(s.f(.level_label, Levels.displayNumber(level)))
                             .font(.system(size: 17, weight: .bold, design: .rounded))
                             .foregroundStyle(palette.textPrimary)
-                        Text(s[Levels.packOf(level).nameKey])
+                        Text(s[group.nameKey])
                             .font(.system(size: 12, design: .rounded))
                             .foregroundStyle(palette.textSecondary)
                     }
@@ -75,15 +76,32 @@ struct GameScreen: View {
                         palette: palette,
                         spacing: 2
                     )
-                    Text(s.f(.game_moves, vm.play.moveCount, level.par) + "  " + s[.game_moves_label])
-                        .font(.system(size: 14, design: .rounded))
-                        .foregroundStyle(palette.textSecondary)
+                    // With a limit the counter runs against the limit — the star pips
+                    // already say where par sits, and "7 / 4" would just look like a bug.
+                    let urgent = (vm.play.movesLeft ?? 3) <= 2
+                    Text(
+                        s.f(.game_moves, vm.play.moveCount, vm.play.moveLimit ?? level.par)
+                            + "  " + s[.game_moves_label]
+                    )
+                    .font(.system(size: 14, weight: urgent ? .bold : .regular, design: .rounded))
+                    .foregroundStyle(urgent ? palette.accent : palette.textSecondary)
+
+                    // Star Hunt's optional stars.
+                    if vm.play.pickupTotal > 0 {
+                        HStack(spacing: 3) {
+                            PickupStarIcon(size: 15, color: palette.star)
+                            Text(s.f(.stars_collected, vm.play.collectedCount, vm.play.pickupTotal))
+                                .font(.system(size: 14, design: .rounded))
+                                .foregroundStyle(palette.textSecondary)
+                        }
+                    }
                 }
                 .padding(.top, 4)
 
-                // ---------- Tutorial tip ----------
-                if let tip = level.tip, vm.play.moveCount == 0, !vm.play.won {
-                    Text(s[tip])
+                // ---------- Tutorial tip, or a pack's one-line rule on its first level ----------
+                let intro = level.tip ?? (level.index == 0 ? group.blurbKey : nil)
+                if let intro, vm.play.moveCount == 0, !vm.play.won {
+                    Text(s[intro])
                         .font(.system(size: 14, design: .rounded))
                         .foregroundStyle(palette.textPrimary)
                         .multilineTextAlignment(.center)
@@ -170,13 +188,32 @@ struct GameScreen: View {
             }
             .phoneContentWidth()
 
+            // ---------- Out of moves ----------
+            if vm.play.failed {
+                OutOfMovesOverlay(
+                    palette: palette,
+                    s: s,
+                    onUndo: { vm.play.undo() },
+                    onRestart: { vm.restart() }
+                )
+            }
+
             // ---------- Win overlay ----------
             if vm.play.won {
-                let next = Levels.next(level)
-                let nextAllowed = next != nil && (!Levels.packOf(next!).premium || progress.premium)
+                // Fold this win into the star map before asking what comes next — the
+                // answer can hinge on the star it just earned.
+                let banked = progress.stars.merging(
+                    [level.id: max(progress.starsFor(level.id), vm.play.starsEarned)]
+                ) { _, new in new }
+                let next = Levels.nextPlayable(level, stars: banked)
+                let nextAllowed = next.map {
+                    !Levels.isPaywalled(Levels.groupOf($0), premium: progress.premium)
+                } ?? false
                 WinOverlay(
                     stars: vm.play.starsEarned,
                     moves: vm.play.moveCount,
+                    starsCollected: vm.play.collectedCount,
+                    starsTotal: vm.play.pickupTotal,
                     hasNext: nextAllowed,
                     nextLocked: next != nil && !nextAllowed,
                     palette: palette,
@@ -189,6 +226,7 @@ struct GameScreen: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: vm.play.won)
+        .animation(.easeInOut(duration: 0.25), value: vm.play.failed)
         .animation(.easeInOut(duration: 0.2), value: vm.hintState == .noSolution || vm.hintState == .offPath)
         .onAppear {
             vm.play.onEffect = { [weak progress] effect in
@@ -196,7 +234,13 @@ struct GameScreen: View {
             }
         }
         .onChange(of: vm.play.won) { _, won in
-            if won { progress.recordWin(level.id, stars: vm.play.starsEarned) }
+            if won {
+                progress.recordWin(
+                    level.id,
+                    stars: vm.play.starsEarned,
+                    collected: vm.play.collectedCount
+                )
+            }
         }
         .alert(s[.hints_out_title], isPresented: $showHintsOut) {
             Button(s.f(.hints_buy, store.prices[StoreManager.hintsID] ?? s[.hints_price_fallback])) {
@@ -263,46 +307,80 @@ struct BoardView: View {
             let cell = min(geo.size.width / Double(board.width), geo.size.height / Double(board.height), 64)
             let boardW = cell * Double(board.width)
             let boardH = cell * Double(board.height)
+            // A block mid-warp is hidden: WarpTrip below is showing its trip, and leaving
+            // the real one on screen would slide it across the board — exactly the
+            // impression portals must not give.
+            let warping = Set(play.warps.map(\.id))
 
             ZStack(alignment: .topLeading) {
-                // Static layer: floors, walls, targets
+                // Static layer: floors, walls, targets and any special-pack tiles
                 Canvas { ctx, _ in
+                    let collapsed = play.state.collapsed
+                    let collected = play.state.collected
                     for y in 0..<board.height {
                         for x in 0..<board.width {
                             let origin = CGPoint(x: Double(x) * cell, y: Double(y) * cell)
-                            if board.isWall(x, y) {
-                                let rect = CGRect(x: origin.x + cell * 0.03, y: origin.y + cell * 0.03, width: cell * 0.94, height: cell * 0.94)
-                                ctx.fill(Path(roundedRect: rect, cornerRadius: cell * 0.16), with: .color(palette.wall))
-                            } else {
-                                let rect = CGRect(x: origin.x + cell * 0.05, y: origin.y + cell * 0.05, width: cell * 0.9, height: cell * 0.9)
-                                ctx.fill(Path(roundedRect: rect, cornerRadius: cell * 0.14), with: .color(palette.cell))
-                                if let target = board.targetAt(x, y) {
-                                    let tint = palette.block(target)
-                                    let ring = CGRect(x: origin.x + cell * 0.1, y: origin.y + cell * 0.1, width: cell * 0.8, height: cell * 0.8)
-                                    ctx.stroke(
-                                        Path(roundedRect: ring, cornerRadius: cell * 0.14),
-                                        with: .color(tint),
-                                        lineWidth: cell * 0.06
-                                    )
-                                    let cx = origin.x + cell / 2
-                                    let cy = origin.y + cell / 2
-                                    let r = cell * 0.13
-                                    var diamond = Path()
-                                    diamond.move(to: CGPoint(x: cx, y: cy - r))
-                                    diamond.addLine(to: CGPoint(x: cx + r, y: cy))
-                                    diamond.addLine(to: CGPoint(x: cx, y: cy + r))
-                                    diamond.addLine(to: CGPoint(x: cx - r, y: cy))
-                                    diamond.closeSubpath()
-                                    ctx.fill(diamond, with: .color(tint.opacity(0.55)))
-                                }
+                            let cellIdx = board.idx(x, y)
+                            let hasFallen = collapsed.contains(cellIdx)
+                            if board.isWall(x, y) || hasFallen {
+                                let rect = CGRect(
+                                    x: origin.x + cell * 0.03, y: origin.y + cell * 0.03,
+                                    width: cell * 0.94, height: cell * 0.94
+                                )
+                                ctx.fill(
+                                    Path(roundedRect: rect, cornerRadius: cell * 0.16),
+                                    with: .color(hasFallen ? palette.wall.opacity(0.5) : palette.wall)
+                                )
+                                continue
                             }
+
+                            let rect = CGRect(
+                                x: origin.x + cell * 0.05, y: origin.y + cell * 0.05,
+                                width: cell * 0.9, height: cell * 0.9
+                            )
+                            ctx.fill(
+                                Path(roundedRect: rect, cornerRadius: cell * 0.14),
+                                with: .color(palette.cell)
+                            )
+                            if let target = board.targetAt(x, y) {
+                                let tint = palette.block(target)
+                                let ring = CGRect(
+                                    x: origin.x + cell * 0.1, y: origin.y + cell * 0.1,
+                                    width: cell * 0.8, height: cell * 0.8
+                                )
+                                ctx.stroke(
+                                    Path(roundedRect: ring, cornerRadius: cell * 0.14),
+                                    with: .color(tint),
+                                    lineWidth: cell * 0.06
+                                )
+                                let cx = origin.x + cell / 2
+                                let cy = origin.y + cell / 2
+                                let r = cell * 0.13
+                                var diamond = Path()
+                                diamond.move(to: CGPoint(x: cx, y: cy - r))
+                                diamond.addLine(to: CGPoint(x: cx + r, y: cy))
+                                diamond.addLine(to: CGPoint(x: cx, y: cy + r))
+                                diamond.addLine(to: CGPoint(x: cx - r, y: cy))
+                                diamond.closeSubpath()
+                                ctx.fill(diamond, with: .color(tint.opacity(0.55)))
+                            }
+
+                            drawSpecialTile(
+                                &ctx,
+                                board: board,
+                                cellIdx: cellIdx,
+                                origin: origin,
+                                cell: cell,
+                                collected: collected,
+                                palette: palette
+                            )
                         }
                     }
                 }
                 .frame(width: boardW, height: boardH)
 
                 // Blocks
-                ForEach(play.blocks) { block in
+                ForEach(play.blocks.filter { !warping.contains($0.id) }) { block in
                     BlockTile(
                         block: block,
                         cell: cell,
@@ -318,6 +396,12 @@ struct BoardView: View {
                 // Fusion ghosts fading into their anvil
                 ForEach(play.ghosts) { ghost in
                     GhostTile(ghost: ghost, cell: cell, palette: palette, blockShape: blockShape)
+                }
+
+                // Portal trips: into one mouth, out of the other.
+                ForEach(play.warps) { warp in
+                    WarpTrip(warp: warp, cell: cell, palette: palette, blockShape: blockShape)
+                        .id(warp.id)
                 }
             }
             .frame(width: boardW, height: boardH)
@@ -352,6 +436,83 @@ struct BoardView: View {
         // so it must not mirror in RTL locales.
         .environment(\.layoutDirection, .leftToRight)
     }
+}
+
+/// Draws whatever tile a special pack has put on this cell — a collectible star or a
+/// portal mouth. Classic boards carry none of these, so on Classic this does nothing.
+///
+/// The gate, painter and crack branches back the engine's tile support, which outlives
+/// the One Way / Paint Shop / Fault Line packs it was written for; keeping them here
+/// means bringing one of those packs back is a data change, not an engine change.
+private func drawSpecialTile(
+    _ ctx: inout GraphicsContext,
+    board: Board,
+    cellIdx: Int,
+    origin: CGPoint,
+    cell: Double,
+    collected: Set<Int>,
+    palette: BlendPalette
+) {
+    let center = CGPoint(x: origin.x + cell / 2, y: origin.y + cell / 2)
+
+    func circle(_ radius: Double) -> Path {
+        Path(ellipseIn: CGRect(
+            x: center.x - radius, y: center.y - radius,
+            width: radius * 2, height: radius * 2
+        ))
+    }
+
+    if let paint = board.painters[cellIdx] {
+        let tint = palette.block(paint)
+        ctx.fill(circle(cell * 0.32), with: .color(tint.opacity(0.28)))
+        ctx.stroke(circle(cell * 0.32), with: .color(tint), lineWidth: cell * 0.07)
+    }
+
+    if let dir = board.gates[cellIdx] {
+        ctx.fill(
+            arrowPath(center: center, r: cell * 0.26, dir: dir),
+            with: .color(palette.accent.opacity(0.8))
+        )
+    }
+
+    if board.portals[cellIdx] != nil {
+        ctx.stroke(circle(cell * 0.3), with: .color(palette.portal), lineWidth: cell * 0.06)
+        ctx.stroke(circle(cell * 0.15), with: .color(palette.portal.opacity(0.5)), lineWidth: cell * 0.05)
+    }
+
+    if board.cracks.contains(cellIdx) {
+        let r = cell * 0.3
+        var zig = Path()
+        zig.move(to: CGPoint(x: center.x - r, y: center.y - r * 0.45))
+        zig.addLine(to: CGPoint(x: center.x - r * 0.2, y: center.y))
+        zig.addLine(to: CGPoint(x: center.x + r * 0.25, y: center.y - r * 0.4))
+        zig.addLine(to: CGPoint(x: center.x + r, y: center.y + r * 0.45))
+        ctx.stroke(zig, with: .color(palette.accent.opacity(0.45)), lineWidth: cell * 0.05)
+    }
+
+    if board.pickups.contains(cellIdx) && !collected.contains(cellIdx) {
+        drawPickupStar(&ctx, center: center, radius: cell * 0.24, color: palette.star)
+    }
+}
+
+private func arrowPath(center: CGPoint, r: Double, dir: Direction) -> Path {
+    let dx = Double(dir.dx)
+    let dy = Double(dir.dy)
+    // Perpendicular, for the two base corners.
+    let px = -dy
+    let py = dx
+    var path = Path()
+    path.move(to: CGPoint(x: center.x + dx * r, y: center.y + dy * r))
+    path.addLine(to: CGPoint(
+        x: center.x - dx * r * 0.55 + px * r * 0.8,
+        y: center.y - dy * r * 0.55 + py * r * 0.8
+    ))
+    path.addLine(to: CGPoint(
+        x: center.x - dx * r * 0.55 - px * r * 0.8,
+        y: center.y - dy * r * 0.55 - py * r * 0.8
+    ))
+    path.closeSubpath()
+    return path
 }
 
 private struct BlockTile: View {
@@ -410,6 +571,85 @@ private struct GhostTile: View {
     }
 }
 
+/// The block's trip through a portal, in two legs of equal length: it slides into the
+/// entry mouth and shrinks away, then swells back out of the exit mouth and carries on to
+/// where it stopped. Each mouth flares as the block passes through it.
+///
+/// This exists because the alternative reads as a lie. Left alone, the block's coordinates
+/// jump from one side of the board to the other and the tile animates smoothly between
+/// them — which looks exactly like sliding straight through the wall in between. Playing
+/// the two legs separately is what makes "in here, out there" legible.
+///
+/// The two legs need their own easing curve applied per frame, which a plain SwiftUI
+/// animation cannot express, so the clock is read directly from a TimelineView.
+private struct WarpTrip: View {
+    let warp: WarpFx
+    let cell: Double
+    let palette: BlendPalette
+    let blockShape: BlockShape
+
+    @State private var start = Date()
+
+    var body: some View {
+        TimelineView(.animation) { ctx in
+            let t = min(1, max(0, ctx.date.timeIntervalSince(start) / warpDuration))
+            let entering = t < 0.5
+            let leg = entering ? t / 0.5 : (t - 0.5) / 0.5
+            // Smoothstep, standing in for Compose's FastOutSlowIn.
+            let eased = leg * leg * (3 - 2 * leg)
+
+            let startX = Double(entering ? warp.fromX : warp.outX)
+            let startY = Double(entering ? warp.fromY : warp.outY)
+            let endX = Double(entering ? warp.inX : warp.toX)
+            let endY = Double(entering ? warp.inY : warp.toY)
+
+            // Shrink into the mouth on the way in, swell back out of it on the way out.
+            let scale = entering ? 1 - 0.85 * leg : 0.15 + 0.85 * leg
+
+            ZStack(alignment: .topLeading) {
+                TileShape(kind: blockShape)
+                    .fill(palette.block(warp.color))
+                    .padding(cell * 0.07)
+                    .frame(width: cell, height: cell)
+                    .scaleEffect(scale)
+                    .opacity(entering ? 1 - 0.25 * leg : 0.75 + 0.25 * leg)
+                    .offset(
+                        x: cell * (startX + (endX - startX) * eased),
+                        y: cell * (startY + (endY - startY) * eased)
+                    )
+
+                WarpFlare(x: warp.inX, y: warp.inY, cell: cell, color: palette.portal,
+                          active: entering, leg: leg)
+                WarpFlare(x: warp.outX, y: warp.outY, cell: cell, color: palette.portal,
+                          active: !entering, leg: leg)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// A mouth flaring as the block goes through it.
+private struct WarpFlare: View {
+    let x: Int
+    let y: Int
+    let cell: Double
+    let color: Color
+    let active: Bool
+    let leg: Double
+
+    var body: some View {
+        if active {
+            Circle()
+                .stroke(color, lineWidth: cell * 0.055)
+                .padding(cell * 0.14)
+                .frame(width: cell, height: cell)
+                .scaleEffect(0.7 + 0.55 * leg)
+                .opacity((1 - leg) * 0.9)
+                .offset(x: Double(x) * cell, y: Double(y) * cell)
+        }
+    }
+}
+
 // MARK: - Swatches
 
 struct SwatchRow: View {
@@ -453,11 +693,76 @@ struct SwatchRow: View {
     }
 }
 
+// MARK: - Out of moves
+
+/// Shown when a move-limited level runs out of moves. Undo is offered first and stays
+/// enabled, so a mistake costs a tap rather than the whole attempt.
+private struct OutOfMovesOverlay: View {
+    let palette: BlendPalette
+    let s: Strings
+    let onUndo: () -> Void
+    let onRestart: () -> Void
+
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Text(s[.out_of_moves_title])
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .foregroundStyle(palette.textPrimary)
+
+                Text(s[.out_of_moves_body])
+                    .font(.system(size: 14, design: .rounded))
+                    .foregroundStyle(palette.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 10)
+
+                Spacer().frame(height: 20)
+
+                Button(action: onUndo) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 16, weight: .bold))
+                        Text(s[.btn_undo])
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(palette.accent, in: RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(PressableButtonStyle())
+
+                Button(s[.btn_restart], action: onRestart)
+                    .font(.system(size: 15, design: .rounded))
+                    .foregroundStyle(palette.textPrimary)
+                    .buttonStyle(.plain)
+                    .padding(.top, 12)
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 24)
+            .frame(maxWidth: 340)
+            .background(palette.surface, in: RoundedRectangle(cornerRadius: 24))
+            .shadow(color: .black.opacity(0.25), radius: 30, y: 10)
+            .scaleEffect(appeared ? 1 : 0.85)
+            .opacity(appeared ? 1 : 0)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { appeared = true }
+        }
+    }
+}
+
 // MARK: - Win overlay
 
 struct WinOverlay: View {
     let stars: Int
     let moves: Int
+    var starsCollected = 0
+    var starsTotal = 0
     let hasNext: Bool
     let nextLocked: Bool
     let palette: BlendPalette
@@ -501,6 +806,30 @@ struct WinOverlay: View {
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(palette.star)
                         .padding(.top, 2)
+                }
+
+                // Star Hunt: show what you swept and what you walked past. A dim star
+                // here is the whole reason to come back to a level you have solved.
+                if starsTotal > 0 {
+                    HStack(spacing: 6) {
+                        ForEach(0..<starsTotal, id: \.self) { i in
+                            PickupStarIcon(
+                                size: 22,
+                                color: i < starsCollected ? palette.star : palette.textSecondary.opacity(0.28)
+                            )
+                        }
+                    }
+                    .padding(.top, 12)
+
+                    Text(
+                        starsCollected == starsTotal
+                            ? s[.win_stars_all]
+                            : s.f(.win_stars_missed, starsTotal - starsCollected)
+                    )
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(starsCollected == starsTotal ? palette.star : palette.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 4)
                 }
 
                 Spacer().frame(height: 20)

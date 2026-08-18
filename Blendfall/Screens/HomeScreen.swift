@@ -70,11 +70,19 @@ struct HomeScreen: View {
 
                 Spacer().frame(height: 26)
 
-                let solved = progress.stars.values.count { $0 > 0 }
+                // The headline progress is Classic only — the packs are a side campaign.
+                let solved = Levels.classic.count { progress.starsFor($0.id) > 0 }
                 let totalStars = progress.stars.values.reduce(0, +)
                 if solved > 0 {
-                    ProgressCard(solved: solved, total: Levels.total, stars: totalStars, palette: palette, s: s)
-                        .padding(.bottom, 18)
+                    ProgressCard(
+                        solved: solved,
+                        total: Levels.total,
+                        stars: totalStars,
+                        collected: progress.pickupsCollected,
+                        palette: palette,
+                        s: s
+                    )
+                    .padding(.bottom, 18)
                 } else {
                     Spacer().frame(height: 8)
                 }
@@ -88,7 +96,7 @@ struct HomeScreen: View {
                             .font(.system(size: 19, weight: .bold))
                         Text(
                             solved > 0
-                                ? s.f(.home_continue, Levels.globalNumber(continueId))
+                                ? s.f(.home_continue, Levels.displayNumber(id: continueId))
                                 : s[.home_play]
                         )
                         .font(.system(size: 19, weight: .black, design: .rounded))
@@ -128,7 +136,7 @@ struct HomeScreen: View {
                         HStack(spacing: 6) {
                             Image(systemName: "square.grid.3x3.fill")
                                 .font(.system(size: 14, weight: .semibold))
-                            Text(s[.packs_title])
+                            Text(s[.levels_title])
                                 .font(.system(size: 16, weight: .bold, design: .rounded))
                         }
                         .foregroundStyle(palette.textPrimary)
@@ -286,6 +294,8 @@ private struct ProgressCard: View {
     let solved: Int
     let total: Int
     let stars: Int
+    /// Star Hunt pickups swept up so far. Hidden until the player has found one.
+    let collected: Int
     let palette: BlendPalette
     let s: Strings
 
@@ -307,6 +317,18 @@ private struct ProgressCard: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(palette.star.opacity(0.14), in: Capsule())
+
+                if collected > 0 {
+                    HStack(spacing: 4) {
+                        PickupStarIcon(size: 12, color: palette.star)
+                        Text("\(collected)")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(palette.textSecondary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(palette.star.opacity(0.14), in: Capsule())
+                }
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {

@@ -7,25 +7,39 @@ FitStation/linequest port pattern. Android is the source of truth.
 
 | Android (`com.rongo.blendfall`) | iOS (`Blendfall/`) |
 |---|---|
-| `engine/Model.kt`, `Engine.kt`, `Solver.kt` | `Engine.swift` (all `nonisolated` so the solver runs off-main) |
-| `levels/Levels.kt` (packs 1–4) | `Levels.swift` |
-| `levels/GeneratedLevels.kt` (packs 5–30) | `GeneratedLevels.swift` — GENERATED, see `tools/gen_levels.py` |
-| `res/values*/strings.xml` (14 languages) | `Strings.swift` — GENERATED, see `tools/gen_strings.py`; keys identical to Android |
-| `ui/theme/Theme.kt` (11 palettes) | `Theme.swift` |
-| `ui/theme/BlockShape.kt` (9 shapes) | `BlockShapes.swift` |
-| `ui/theme/Tier.kt` | `Theme.swift` (`Tier`) |
-| `data/ProgressRepository.kt` (DataStore) | `ProgressStore.swift` (UserDefaults, same key names) |
-| `data/BillingManager.kt` (Play Billing) | `Store.swift` (StoreKit 2) + `Products.storekit` |
-| `ui/PuzzleState.kt`, `GameViewModel.kt`, `BlitzViewModel.kt` | `PuzzleState.swift` (`PuzzleState`, `GameViewModel`, `BlitzModel`) |
-| `MainActivity.kt` (back-stack nav) | `RootView.swift` (`Screen` enum; Premium/Settings are sheets) |
+| `engine/Model.kt`, `Engine.kt`, `Solver.kt` | `Game/Engine.swift` (all `nonisolated` so the solver runs off-main) |
+| `levels/Levels.kt` (catalog + tutorials) | `Levels/Levels.swift` |
+| `levels/GeneratedClassic.kt`, `LegacyClassic.kt`, `BigPackLevels.kt` | `Levels/GeneratedLevels.swift` — GENERATED, see `tools/gen_levels.py` |
+| `res/values*/strings.xml` (14 languages) | `Localization/Strings.swift` — GENERATED, see `tools/gen_strings.py`; keys identical to Android |
+| `ui/theme/Theme.kt` (11 palettes) | `UI/Theme.swift` |
+| `ui/theme/BlockShape.kt` (9 shapes) | `Game/BlockShapes.swift` |
+| `ui/theme/Tier.kt` | `UI/Theme.swift` (`Tier`) |
+| `data/ProgressRepository.kt`, `PickupTally.kt` (DataStore) | `Data/ProgressStore.swift` (UserDefaults, same key names) |
+| `data/BillingManager.kt` (Play Billing) | `Data/Store.swift` (StoreKit 2) + `Products.storekit` |
+| `ui/PuzzleState.kt`, `GameViewModel.kt`, `BlitzViewModel.kt` | `Game/PuzzleState.swift` (`PuzzleState`, `GameViewModel`, `BlitzModel`) |
+| `MainActivity.kt` (back-stack nav) | `App/RootView.swift` (`Screen` enum + back stack; Premium/Settings are sheets) |
 | `ui/HomeScreen.kt` | `HomeScreen.swift` |
-| `ui/PacksScreen.kt` | `PacksScreen.swift` |
+| `ui/ChaptersScreen.kt` (chapter list + level grid) | `ChaptersScreen.swift` (`ChaptersScreen`, `LevelGridScreen`) |
 | `ui/GameScreen.kt` (board, swatches, win dialog) | `GameScreen.swift` (`BoardView`/`SwatchRow` shared with Blitz) |
 | `ui/BlitzScreen.kt` | `BlitzScreen.swift` |
 | `ui/PremiumScreen.kt` | `PremiumScreen.swift` |
 | `ui/SettingsScreen.kt` | `SettingsScreen.swift` |
 | `ui/OnboardingOverlay.kt` | `OnboardingOverlay.swift` |
-| `ui/Ui.kt` | `Components.swift` (+ haptics) |
+| `ui/Ui.kt`, `Star.kt`, `PackBadge.kt` | `UI/Components.swift` (+ haptics, pickup star, pack badge) |
+
+## Content shape
+
+Classic is **300 levels in six chapters of 50** (`c1`…`c6`); chapters IV–VI are premium.
+Each chapter's last 10 are **Master levels**, gated behind 90 stars from that chapter's
+first 40. From global level 15 a Classic level is **move-limited** at par + 3.
+
+Two free 80-level mechanic packs sit outside Classic, listed under their own header on
+the Levels screen: **Star Hunt** (optional `*` pickups, 155 stars in total) and
+**Portals** (paired rings that teleport a block, which keeps sliding). Classic itself is
+deliberately mechanic-free — every special tile lives in a pack.
+
+The engine also carries one-way gates, painter tiles and cracked floors, unused by any
+shipping pack, so reviving one is a data change rather than an engine change.
 
 ## Tech mapping used
 
@@ -41,18 +55,43 @@ FitStation/linequest port pattern. Android is the source of truth.
   the Android `HapticFeedbackConstants` usage.
 - iOS-game styling: SF Rounded everywhere, spring block animations, pressable-scale
   buttons, custom win overlay card, portrait-only.
+- The portal trip animation needs a per-frame easing curve across two legs, which a
+  plain SwiftUI animation cannot express, so `WarpTrip` reads the clock from a
+  `TimelineView(.animation)` — the counterpart of Compose's `Animatable` loop.
+- Level grids feed rows straight into the `LazyVStack` rather than through a wrapper
+  view; a single tall child stops the stack materializing what follows it.
 
 ## Regenerating generated files
 
 ```bash
 python3 tools/gen_strings.py   # from Android res/values*/strings.xml
-python3 tools/gen_levels.py    # from Android GeneratedLevels.kt
+python3 tools/gen_levels.py    # from Android GeneratedClassic/LegacyClassic/BigPackLevels.kt
 ```
+
+`gen_strings.py` carries the iOS-only keys (`home_no_ads`, `home_stars`) over from the
+previous output, since Android has no equivalent for them.
+
+## Verifying a level port
+
+`tools/gen_levels.py` only moves data; the check that the *engine* agrees with Android is
+to solve every board and confirm BFS optimal == par (the Android `LevelDoctorTest`
+invariant). The engine has no UI dependencies, so it compiles standalone:
+
+```bash
+xcrun swiftc -O -o /tmp/verify \
+  Blendfall/Game/Engine.swift Blendfall/Levels/Levels.swift \
+  Blendfall/Levels/GeneratedLevels.swift Blendfall/Localization/Strings.swift main.swift
+```
+
+Last run: 460 levels, all solvable at par, 155 pickup stars.
 
 ## Status
 
-- [x] Engine, solver, 300 levels, 11 themes, 9 shapes, 14 languages
-- [x] Home / Packs / Game / Blitz / Premium / Settings / Onboarding
+- [x] Engine (incl. portals, pickups, gates, painters, cracks), solver, 11 themes,
+      9 shapes, 14 languages
+- [x] 460 levels: 300 Classic in six chapters + Star Hunt 80 + Portals 80 — all
+      solver-verified at par
+- [x] Home / Chapters / Level grid / Game / Blitz / Premium / Settings / Onboarding
 - [x] StoreKit 2 + Products.storekit test config
 - [x] Builds and runs on iPhone simulator (Debug and Release)
 - [x] App Store files: `AppStore_Listing.md` (incl. the 5 IAPs + pricing), `PRIVACY.md`,

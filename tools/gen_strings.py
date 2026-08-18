@@ -5,7 +5,12 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 RES = Path("/Users/rongo/AndroidStudioProjects/Blendfall/app/src/main/res")
-OUT = Path("/Users/rongo/Desktop/ios/Blendfall/Blendfall/Strings.swift")
+OUT = Path("/Users/rongo/Desktop/ios/Blendfall/Blendfall/Localization/Strings.swift")
+
+# Keys the iOS app has that Android has no equivalent for. Their translations live
+# only in the generated file, so they are read back out of it and carried over
+# rather than being lost on every regeneration.
+IOS_ONLY = ["home_no_ads", "home_stars"]
 
 # folder suffix -> Language case (values -> en, values-iw -> he)
 LANGS = {
@@ -79,11 +84,35 @@ def parse(folder: Path):
     return strings, plurals
 
 
+def previous_ios_only():
+    """Pull the iOS-only keys' translations back out of the last generated file."""
+    carried = {lang: {} for lang in LANGS.values()}
+    if not OUT.exists():
+        return carried
+    text = OUT.read_text()
+    lang = None
+    for line in text.splitlines():
+        m = re.match(r"\s*static let table_(\w+): \[K: String\] = \[", line)
+        if m:
+            lang = m.group(1)
+            continue
+        if lang is None:
+            continue
+        m = re.match(r'\s*\.(\w+): "(.*)",$', line)
+        if m and m.group(1) in IOS_ONLY:
+            carried[lang][m.group(1)] = m.group(2)
+    return carried
+
+
 data = {}
 for folder, lang in LANGS.items():
     p = RES / folder
     if (p / "strings.xml").exists():
         data[lang] = parse(p)
+
+carried = previous_ios_only()
+for lang, (strings, _) in data.items():
+    strings.update(carried.get(lang, {}))
 
 en_strings, en_plurals = data["en"]
 keys = list(en_strings.keys())

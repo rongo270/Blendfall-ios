@@ -5,7 +5,8 @@
 //  Live state of one puzzle attempt — blocks, selection, undo history, win
 //  detection. Shared by the campaign (GameViewModel adds hints/stars) and
 //  Blitz (BlitzModel adds the clock and the level queue). Undo is always
-//  unlimited.
+//  unlimited, and undoing is the intended way out of a failed run, so it stays
+//  available after the move limit trips.
 //
 
 import Foundation
@@ -19,8 +20,26 @@ struct Ghost: Identifiable, Equatable {
     let y: Int
 }
 
+/// One block's trip through a portal, with every waypoint the animation needs: where it
+/// set off, the mouth it entered, the mouth it left, and where it finally stopped.
+///
+/// Without this the block simply appears on the far side of the board, which reads as
+/// "it slid there" — the one thing portals do not do. The board hides the real block for
+/// `warpDuration` and plays this instead.
+struct WarpFx: Identifiable, Equatable {
+    let id: Int
+    let color: GameColor
+    let fromX: Int, fromY: Int
+    let inX: Int, inY: Int
+    let outX: Int, outY: Int
+    let toX: Int, toY: Int
+}
+
+/// Total length of the portal animation; the two legs split it evenly.
+let warpDuration = 0.56
+
 enum GameEffect {
-    case slide, fuse, blocked, win
+    case slide, fuse, blocked, pickup, warp, win, fail
 }
 
 @Observable
@@ -29,28 +48,46 @@ final class PuzzleState {
     let level: Level
     let parsed: ParsedLevel
 
-    private(set) var blocks: [Block]
+    private(set) var state: BoardState
     private(set) var ghosts: [Ghost] = []
+    /// Portal trips currently playing. The board hides these blocks while they run.
+    private(set) var warps: [WarpFx] = []
     private(set) var selected: GameColor?
     private(set) var moveCount = 0
     private(set) var won = false
+    private(set) var failed = false
     private(set) var starsEarned = 0
+
+    var board: Board { parsed.board }
+    var blocks: [Block] { state.blocks }
+
+    /// Star Hunt pickups swept up so far.
+    var collectedCount: Int { state.collected.count }
+    let pickupTotal: Int
+
+    let moveLimit: Int?
+    var movesLeft: Int? { moveLimit.map { max(0, $0 - moveCount) } }
 
     /// Fires on every move/undo/restart — the campaign clears its shown hint here.
     var onPositionChanged: () -> Void = {}
-    /// Fires for haptics/sound on every slide, fuse, blocked move and win.
+    /// Fires for haptics/sound on every slide, fuse, blocked move, pickup, warp and win.
     var onEffect: (GameEffect) -> Void = { _ in }
 
-    private var undoStack: [(blocks: [Block], moveCount: Int)] = []
+    private var undoStack: [(state: BoardState, moveCount: Int)] = []
     private var ghostTask: Task<Void, Never>?
+    private var warpTask: Task<Void, Never>?
     private var winTask: Task<Void, Never>?
 
     var canUndo: Bool { !undoStack.isEmpty }
 
-    init(level: Level) {
+    /// - Parameter enforceMoveLimit: Blitz ignores the campaign move limit — there it is
+    ///   the clock that presses.
+    init(level: Level, enforceMoveLimit: Bool = true) {
         self.level = level
         parsed = LevelParser.parse(level)
-        blocks = parsed.blocks
+        state = parsed.state
+        pickupTotal = parsed.board.pickups.count
+        moveLimit = enforceMoveLimit ? level.moveLimit : nil
         selected = Self.firstColor(parsed.blocks)
     }
 
@@ -63,22 +100,22 @@ final class PuzzleState {
     }
 
     func move(_ dir: Direction) {
-        if won { return }
+        if won || failed { return }
         guard let color = selected else { return }
-        let result = Engine.applyMove(board: parsed.board, blocks: blocks, color: color, dir: dir)
+        let result = Engine.applyMove(board: parsed.board, state: state, color: color, dir: dir)
         if !result.changed {
             onEffect(.blocked)
             return
         }
-        let before = blocks
+        let before = state
         undoStack.append((before, moveCount))
         onPositionChanged()
 
-        blocks = result.blocks
+        state = result.state
         moveCount += 1
 
         if !result.fusions.isEmpty {
-            let beforeById = Dictionary(uniqueKeysWithValues: before.map { ($0.id, $0) })
+            let beforeById = Dictionary(uniqueKeysWithValues: before.blocks.map { ($0.id, $0) })
             ghosts = result.fusions.compactMap { fusion in
                 beforeById[fusion.movedId].map { Ghost(id: $0.id, color: $0.color, x: fusion.x, y: fusion.y) }
             }
@@ -93,7 +130,37 @@ final class PuzzleState {
             onEffect(.slide)
         }
 
-        // Selected color may have fused away.
+        if result.state.collected.count > before.collected.count {
+            onEffect(.pickup)
+        }
+
+        // A block that warped is hidden and replayed as a WarpFx, so the player sees it
+        // enter one mouth and leave the other rather than crossing the board.
+        let hops: [WarpFx] = result.moves.compactMap { m in
+            guard let w = m.warp,
+                  let blockColor = before.blocks.first(where: { $0.id == m.id })?.color
+            else { return nil }
+            return WarpFx(
+                id: m.id,
+                color: blockColor,
+                fromX: m.fromX, fromY: m.fromY,
+                inX: w.inX, inY: w.inY,
+                outX: w.outX, outY: w.outY,
+                toX: m.toX, toY: m.toY
+            )
+        }
+        if !hops.isEmpty {
+            warps = hops
+            onEffect(.warp)
+            warpTask?.cancel()
+            warpTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(warpDuration))
+                guard !Task.isCancelled else { return }
+                self?.warps = []
+            }
+        }
+
+        // Selected color may have fused away or been repainted.
         if !blocks.contains(where: { $0.color == color }) {
             selected = Self.firstColor(blocks)
         }
@@ -101,20 +168,28 @@ final class PuzzleState {
         if parsed.board.isWon(blocks) {
             starsEarned = Engine.starsFor(par: level.par, moves: moveCount)
             winTask?.cancel()
+            // A winning move that warped has to finish its trip before the dialog covers
+            // the board, or the player never sees what solved the level.
+            let settle = hops.isEmpty ? 0.45 : warpDuration + 0.12
             winTask = Task { [weak self] in
-                try? await Task.sleep(for: .milliseconds(450))
+                try? await Task.sleep(for: .seconds(settle))
                 guard !Task.isCancelled, let self else { return }
                 self.onEffect(.win)
                 self.won = true
             }
+        } else if let limit = moveLimit, moveCount >= limit {
+            failed = true
+            onEffect(.fail)
         }
     }
 
     func undo() {
-        guard let last = undoStack.popLast(), !won else { return }
-        blocks = last.blocks
+        guard !won, let last = undoStack.popLast() else { return }
+        state = last.state
         moveCount = last.moveCount
         ghosts = []
+        warps = []
+        failed = false
         onPositionChanged()
         if selected == nil || !blocks.contains(where: { $0.color == selected }) {
             selected = Self.firstColor(blocks)
@@ -123,10 +198,12 @@ final class PuzzleState {
 
     func restart() {
         winTask?.cancel()
-        blocks = parsed.blocks
+        state = parsed.state
         ghosts = []
+        warps = []
         moveCount = 0
         won = false
+        failed = false
         starsEarned = 0
         undoStack.removeAll()
         selected = Self.firstColor(parsed.blocks)
@@ -165,14 +242,14 @@ final class GameViewModel {
     /// credit is spent. Off the 3-star path the hint says to undo instead (free), and
     /// re-tapping while the current hint is still on screen is free too.
     func requestHint(onFound: @escaping () -> Void = {}) {
-        if play.won || hintState == .thinking || hint != nil { return }
+        if play.won || play.failed || hintState == .thinking || hint != nil { return }
         hintTask?.cancel()
         hintState = .thinking
         let board = play.parsed.board
-        let blocks = play.blocks
+        let state = play.state
         hintTask = Task { [weak self] in
             let path = await Task.detached(priority: .userInitiated) {
-                Solver.solve(board: board, start: blocks)
+                Solver.solve(board: board, start: state)
             }.value
             guard !Task.isCancelled, let self else { return }
             if path == nil || path!.isEmpty {
@@ -204,9 +281,9 @@ final class GameViewModel {
 // MARK: - Blitz
 
 /// Blitz: solve as many levels as possible before the clock runs out.
-/// Levels are drawn at random from the whole catalog, climbing one rung up
-/// the par ladder every two solves. Score = levels solved; best per duration
-/// is persisted by the caller.
+/// Levels are drawn at random from Classic, climbing one rung up the par ladder
+/// every two solves. Score = levels solved; best per duration is persisted by
+/// the caller.
 @Observable
 final class BlitzModel {
 
@@ -228,8 +305,9 @@ final class BlitzModel {
     private var bestAtStart = 0
     private var recentIds: [String] = []
 
-    /// Difficulty ladder: all levels grouped by par, easiest rung first.
-    private let ladder: [[Level]] = Dictionary(grouping: Levels.all, by: \.par)
+    /// Difficulty ladder: Classic levels grouped by par, easiest rung first. Blitz stays
+    /// out of the mechanic packs — there is no time in a speed run to read a new tile.
+    private let ladder: [[Level]] = Dictionary(grouping: Levels.classic, by: \.par)
         .sorted { $0.key < $1.key }
         .map(\.value)
 
@@ -282,7 +360,7 @@ final class BlitzModel {
         let level = candidates.randomElement()!
         recentIds.append(level.id)
         if recentIds.count > 20 { recentIds.removeFirst() }
-        let next = PuzzleState(level: level)
+        let next = PuzzleState(level: level, enforceMoveLimit: false)
         next.onEffect = { [weak self] in self?.onEffect($0) }
         play = next
     }
