@@ -20,6 +20,19 @@ final class ProgressStore {
 
     static let packIds = ["candy", "nature", "retro"]
 
+    // ---------------------------------------------------------------------
+    // Development switch: Premium and all three theme packs are granted, so
+    // every theme, block shape and premium chapter is available without paying.
+    //
+    // It is ANDed with the #if DEBUG check below, so leaving it switched on can
+    // never ship an unlocked game to the App Store — a release build locks up
+    // again by itself. Granted in memory only, so it never writes an entitlement
+    // into saved progress that would outlive the debug build.
+    //
+    // The level gates have their own twin of this switch: `Levels.unlockAll`.
+    // ---------------------------------------------------------------------
+    static let unlockAllStore = true
+
     private let defaults = UserDefaults.standard
 
     private(set) var premium: Bool
@@ -79,9 +92,10 @@ final class ProgressStore {
         }
 
         #if DEBUG
-        // `BF_PRO=1` (via SIMCTL_CHILD_BF_PRO) grants everything so premium flows
-        // can be inspected without a StoreKit configuration.
-        if ProcessInfo.processInfo.environment["BF_PRO"] != nil {
+        // `unlockAllStore` above, or `BF_PRO=1` (via SIMCTL_CHILD_BF_PRO), grants
+        // everything so premium flows can be inspected without a StoreKit
+        // configuration. Both are in-memory only.
+        if Self.unlockAllStore || ProcessInfo.processInfo.environment["BF_PRO"] != nil {
             premium = true
             packs = Dictionary(uniqueKeysWithValues: Self.packIds.map { ($0, true) })
         }
